@@ -516,6 +516,7 @@ function renderResult(container: HTMLElement, event: SessionEvent & { type: 'boo
     container.classList.add('status-rejected');
     title.textContent = result.errorCode;
     appendDefinition(details, 'Description', result.errorDescription || 'No description');
+    appendDefinition(details, 'Details', formatResultDetails(result.errorDetails));
     appendDefinition(details, 'Request ID', result.uniqueId);
   }
 
@@ -528,6 +529,26 @@ function appendDefinition(list: HTMLDListElement, term: string, value: string): 
   dt.textContent = term;
   dd.textContent = value;
   list.append(dt, dd);
+}
+
+function formatResultDetails(value: unknown): string {
+  if (value === undefined || value === null) {
+    return 'No details';
+  }
+
+  if (typeof value === 'string') {
+    return value || 'No details';
+  }
+
+  if (typeof value === 'object') {
+    if (Object.keys(value).length === 0) {
+      return 'No details';
+    }
+
+    return JSON.stringify(value, null, 2);
+  }
+
+  return String(value);
 }
 
 function setNode(root: HTMLElement, step: string, className: string): void {

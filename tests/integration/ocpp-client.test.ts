@@ -1,5 +1,5 @@
-import { createServer } from 'node:https';
-import type { IncomingMessage } from 'node:http';
+import { createServer as createHttpsServer } from 'node:https';
+import { createServer as createHttpServer, type IncomingMessage } from 'node:http';
 import { readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { resolve } from 'node:path';
@@ -70,8 +70,50 @@ describe('OcppClient integration', () => {
     await client.disconnect();
   });
 
+  it('reports HTTP status and body when the WebSocket upgrade is rejected', async () => {
+    const responseBody = JSON.stringify({ error: 'invalid token' });
+    const server = createHttpServer();
+    servers.push(server);
+
+    server.on('upgrade', (_request, socket) => {
+      socket.end(
+        [
+          'HTTP/1.1 401 Unauthorized',
+          'Content-Type: application/json',
+          `Content-Length: ${Buffer.byteLength(responseBody)}`,
+          'Connection: close',
+          '',
+          responseBody
+        ].join('\r\n')
+      );
+    });
+
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    const address = server.address() as AddressInfo;
+    const events: string[] = [];
+    const client = new OcppClient((event) => {
+      if (event.type === 'log') {
+        events.push(event.message);
+      }
+    });
+
+    const result = await client.connect({
+      protocol: 'ws',
+      address: `127.0.0.1:${address.port}/CP001`,
+      headers: []
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('HTTP 401 Unauthorized');
+    expect(result.error).toContain(responseBody);
+    expect(events.some((message) => message.includes('HTTP 401 Unauthorized') && message.includes(responseBody))).toBe(true);
+
+    await client.disconnect();
+  });
+
   it('connects over wss when the selected CA is supplied', async () => {
-    const httpsServer = createServer({
+    const httpsServer = createHttpsServer({
       cert: readFileSync(resolve(certDir, 'server.crt')),
       key: readFileSync(resolve(certDir, 'server.key'))
     });

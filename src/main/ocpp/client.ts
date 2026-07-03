@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import type { IncomingMessage } from 'node:http';
 import type { RawData } from 'ws';
 import WebSocket from 'ws';
 import type {
@@ -25,6 +26,7 @@ import {
 const DEFAULT_SUBPROTOCOL = 'ocpp1.6';
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const DEFAULT_CONNECT_TIMEOUT_MS = 15_000;
+const MAX_UPGRADE_RESPONSE_BODY_LENGTH = 8_192;
 
 const HEADER_TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 const RESERVED_HEADERS = new Set([
@@ -138,6 +140,18 @@ export class OcppClient {
       });
 
       socket.on('message', (data) => this.handleMessage(data));
+
+      socket.on('unexpected-response', (_request, response) => {
+        failedBeforeOpen = true;
+        this.socket = undefined;
+
+        void readUpgradeResponseBody(response).then((body) => {
+          const message = describeUnexpectedResponse(response, body);
+          this.setStatus('error', message);
+          this.log('error', message);
+          settle({ ok: false, error: message });
+        });
+      });
 
       socket.on('close', (code, reason) => {
         const reasonText = reason.length > 0 ? ` ${reason.toString('utf8')}` : '';
@@ -405,6 +419,45 @@ function normalizeRequestTimeout(timeoutMs?: number): number {
   }
 
   return Math.round(timeoutMs);
+}
+
+function readUpgradeResponseBody(response: IncomingMessage): Promise<string> {
+  return new Promise((resolve) => {
+    let body = '';
+    let truncated = false;
+
+    response.setEncoding('utf8');
+
+    response.on('data', (chunk: string) => {
+      if (body.length >= MAX_UPGRADE_RESPONSE_BODY_LENGTH) {
+        truncated = true;
+        return;
+      }
+
+      const remaining = MAX_UPGRADE_RESPONSE_BODY_LENGTH - body.length;
+      if (chunk.length > remaining) {
+        body += chunk.slice(0, remaining);
+        truncated = true;
+      } else {
+        body += chunk;
+      }
+    });
+
+    response.on('end', () => {
+      const trimmed = body.trim();
+      resolve(truncated && trimmed ? `${trimmed}\n… response body truncated.` : trimmed);
+    });
+
+    response.on('error', () => resolve(''));
+  });
+}
+
+function describeUnexpectedResponse(response: IncomingMessage, body: string): string {
+  const statusCode = response.statusCode ?? 'unknown';
+  const statusMessage = response.statusMessage ? ` ${response.statusMessage}` : '';
+  const bodyMessage = body ? ` Response body: ${body}` : '';
+
+  return `Server rejected WebSocket upgrade with HTTP ${statusCode}${statusMessage}.${bodyMessage}`;
 }
 
 function rawDataToString(data: RawData): string {
