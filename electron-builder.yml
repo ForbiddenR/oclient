@@ -1,6 +1,6 @@
 appId: com.forbiddenr.oclient
 productName: OCPP Bench
-artifactName: ${productName}-${version}-${os}-${target}-${arch}.${ext}
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 directories:
   output: release
 files:
@@ -16,6 +16,10 @@ win:
   target:
     - nsis
     - portable
+nsis:
+  artifactName: ${productName}-${version}-win-installer-${arch}.${ext}
+portable:
+  artifactName: ${productName}-${version}-win-portable-${arch}.${ext}
 linux:
   category: Development
   target:
