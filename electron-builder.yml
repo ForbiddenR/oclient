@@ -1,0 +1,21 @@
+appId: com.forbiddenr.oclient
+productName: OCPP Bench
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+directories:
+  output: release
+files:
+  - dist/**/*
+  - package.json
+asar: true
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - dmg
+    - zip
+win:
+  target:
+    - nsis
+linux:
+  category: Development
+  target:
+    - AppImage

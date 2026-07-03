@@ -1,0 +1,124 @@
+import { createServer } from 'node:https';
+import type { IncomingMessage } from 'node:http';
+import { readFileSync } from 'node:fs';
+import type { AddressInfo } from 'node:net';
+import { resolve } from 'node:path';
+import { once } from 'node:events';
+import { afterEach, describe, expect, it } from 'vitest';
+import { WebSocketServer } from 'ws';
+import { OcppClient } from '../../src/main/ocpp/client';
+
+const certDir = resolve(process.cwd(), 'tests/fixtures/certs');
+const servers: Array<{ close: () => void }> = [];
+
+afterEach(async () => {
+  await Promise.all(
+    servers.splice(0).map(
+      (server) =>
+        new Promise<void>((resolveClose) => {
+          server.close();
+          resolveClose();
+        })
+    )
+  );
+});
+
+describe('OcppClient integration', () => {
+  it('connects over ws, sends headers, and receives BootNotification CALLRESULT', async () => {
+    let requestHeaders: IncomingMessage['headers'] | undefined;
+    const server = new WebSocketServer({ port: 0 });
+    servers.push(server);
+    await once(server, 'listening');
+
+    server.on('connection', (socket, request) => {
+      requestHeaders = request.headers;
+      socket.on('message', (message) => {
+        const frame = JSON.parse(message.toString()) as [2, string, string, Record<string, unknown>];
+        socket.send(JSON.stringify([3, frame[1], { status: 'Accepted', currentTime: '2026-07-03T10:00:00Z', interval: 300 }]));
+      });
+    });
+
+    const address = server.address() as AddressInfo;
+    const events: string[] = [];
+    const client = new OcppClient((event) => {
+      if (event.type === 'frame') {
+        events.push(event.raw);
+      }
+    });
+
+    const result = await client.connect({
+      protocol: 'ws',
+      address: `127.0.0.1:${address.port}/CP001`,
+      headers: [{ id: 'token', enabled: true, name: 'X-Station-Token', value: 'secret' }]
+    });
+
+    expect(result.ok).toBe(true);
+
+    const response = await client.sendBootNotification({
+      chargePointVendor: 'Acme',
+      chargePointModel: 'Model 7'
+    });
+
+    expect(response).toMatchObject({
+      type: 'callResult',
+      status: 'Accepted',
+      interval: 300
+    });
+    expect(requestHeaders?.['x-station-token']).toBe('secret');
+    expect(events.some((raw) => raw.includes('BootNotification'))).toBe(true);
+
+    await client.disconnect();
+  });
+
+  it('connects over wss when the selected CA is supplied', async () => {
+    const httpsServer = createServer({
+      cert: readFileSync(resolve(certDir, 'server.crt')),
+      key: readFileSync(resolve(certDir, 'server.key'))
+    });
+    const server = new WebSocketServer({ server: httpsServer });
+    servers.push(server, httpsServer);
+
+    server.on('connection', (socket) => {
+      socket.on('message', (message) => {
+        const frame = JSON.parse(message.toString()) as [2, string, string, Record<string, unknown>];
+        socket.send(JSON.stringify([3, frame[1], { status: 'Accepted', currentTime: '2026-07-03T10:00:00Z', interval: 120 }]));
+      });
+    });
+
+    httpsServer.listen(0, '127.0.0.1');
+    await once(httpsServer, 'listening');
+    const address = httpsServer.address() as AddressInfo;
+
+    const failingClient = new OcppClient();
+    const failingResult = await failingClient.connect({
+      protocol: 'wss',
+      address: `127.0.0.1:${address.port}/CP001`,
+      headers: []
+    });
+    expect(failingResult.ok).toBe(false);
+    await failingClient.disconnect();
+
+    const trustedClient = new OcppClient();
+    const trustedResult = await trustedClient.connect({
+      protocol: 'wss',
+      address: `127.0.0.1:${address.port}/CP001`,
+      caCertificatePath: resolve(certDir, 'ca.crt'),
+      headers: []
+    });
+
+    expect(trustedResult.ok).toBe(true);
+
+    const response = await trustedClient.sendBootNotification({
+      chargePointVendor: 'Acme',
+      chargePointModel: 'Model 7'
+    });
+
+    expect(response).toMatchObject({
+      type: 'callResult',
+      status: 'Accepted',
+      interval: 120
+    });
+
+    await trustedClient.disconnect();
+  });
+});
