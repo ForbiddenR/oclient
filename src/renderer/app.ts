@@ -29,116 +29,109 @@ export function createApp(root: HTMLElement): void {
 
   root.innerHTML = `
     <section class="shell" aria-label="OCPP Bench">
-      <header class="hero-panel">
-        <div>
-          <p class="eyebrow">OCPP-J session bench</p>
-          <h1>Boot a charge point against any central system.</h1>
-          <p class="lede">Choose the transport, trust chain, and handshake headers, then inspect the first OCPP 1.6J BootNotification exchange.</p>
+      <header class="app-bar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/></svg>
+          </span>
+          <div>
+            <h1>OCPP Bench</h1>
+            <p>OCPP 1.6J BootNotification test client</p>
+          </div>
         </div>
-        <div class="state-line" aria-label="Session workflow state">
-          <div class="node is-active" data-step="transport"><span>Transport</span></div>
-          <div class="wire"></div>
-          <div class="node" data-step="socket"><span>Socket</span></div>
-          <div class="wire"></div>
-          <div class="node" data-step="boot"><span>BootNotification</span></div>
-          <div class="wire"></div>
-          <div class="node" data-step="result"><span>Result</span></div>
-        </div>
+        <div id="statusBadge" class="status-badge is-idle">Idle</div>
       </header>
 
-      <section class="workspace">
-        <form id="controlForm" class="panel control-panel">
-          <section class="panel-section">
-            <div class="section-heading">
-              <span class="section-kicker">01 / Transport</span>
-              <h2>Central system endpoint</h2>
-            </div>
-
-            <div class="segmented" role="radiogroup" aria-label="Transport protocol">
-              <label>
-                <input type="radio" name="protocol" value="ws" checked />
-                <span>ws</span>
-              </label>
-              <label>
-                <input type="radio" name="protocol" value="wss" />
-                <span>wss</span>
-              </label>
-            </div>
-
-            <label class="field">
-              <span>Endpoint</span>
-              <input id="addressInput" name="address" type="text" value="127.0.0.1:9000/CP001" autocomplete="off" spellcheck="false" />
-              <small>Use a full URL or omit the scheme and let the selected transport apply it.</small>
-            </label>
-
-            <label class="field compact">
-              <span>Subprotocol</span>
-              <input id="subprotocolInput" name="subprotocol" type="text" value="ocpp1.6" autocomplete="off" spellcheck="false" />
-            </label>
-
-            <div id="caSection" class="certificate-card" hidden>
-              <div>
-                <span class="field-label">CA certificate</span>
-                <p id="caPath" class="path-readout">No certificate selected</p>
+      <div class="workspace">
+        <form id="controlForm" class="control-column">
+          <section class="card">
+            <header class="card-head"><h2>Transport</h2></header>
+            <div class="card-body">
+              <div class="segmented" role="radiogroup" aria-label="Transport protocol">
+                <label>
+                  <input type="radio" name="protocol" value="ws" checked />
+                  <span>ws</span>
+                </label>
+                <label>
+                  <input type="radio" name="protocol" value="wss" />
+                  <span>wss</span>
+                </label>
               </div>
-              <div class="button-row tight">
-                <button id="pickCaButton" class="secondary" type="button">Choose CA</button>
-                <button id="clearCaButton" class="ghost" type="button">Clear</button>
-              </div>
-              <label class="insecure-toggle">
-                <input id="insecureTlsInput" type="checkbox" />
-                <span>Allow insecure TLS</span>
-                <small>Skip server certificate validation. Use only for testing self-signed CSMS certificates.</small>
+
+              <label class="field">
+                <span>Endpoint</span>
+                <input id="addressInput" name="address" type="text" value="127.0.0.1:9000/CP001" autocomplete="off" spellcheck="false" />
+                <small>Use a full URL or omit the scheme and let the selected transport apply it.</small>
               </label>
+
+              <label class="field compact">
+                <span>Subprotocol</span>
+                <input id="subprotocolInput" name="subprotocol" type="text" value="ocpp1.6" autocomplete="off" spellcheck="false" />
+              </label>
+
+              <div id="caSection" class="certificate-card" hidden>
+                <div>
+                  <span class="field-label">CA certificate</span>
+                  <p id="caPath" class="path-readout">No certificate selected</p>
+                </div>
+                <div class="button-row tight">
+                  <button id="pickCaButton" class="secondary" type="button">Choose CA</button>
+                  <button id="clearCaButton" class="ghost" type="button">Clear</button>
+                </div>
+                <label class="insecure-toggle">
+                  <input id="insecureTlsInput" type="checkbox" />
+                  <span>Allow insecure TLS</span>
+                  <small>Skip server certificate validation. Use only for testing self-signed CSMS certificates.</small>
+                </label>
+              </div>
             </div>
           </section>
 
-          <section class="panel-section">
-            <div class="section-heading">
-              <span class="section-kicker">02 / Headers</span>
-              <h2>Upgrade headers</h2>
-            </div>
-            <div class="header-table" role="group" aria-label="Custom headers">
-              <div class="header-row header-head" aria-hidden="true">
-                <span>On</span>
-                <span>Name</span>
-                <span>Value</span>
-                <span></span>
+          <section class="card">
+            <header class="card-head">
+              <h2>Headers</h2>
+              <button id="addHeaderButton" class="inline-action" type="button">+ Add header</button>
+            </header>
+            <div class="card-body">
+              <div class="header-table" role="group" aria-label="Custom headers">
+                <div class="header-row header-head" aria-hidden="true">
+                  <span>On</span>
+                  <span>Name</span>
+                  <span>Value</span>
+                  <span></span>
+                </div>
+                <div id="headerRows"></div>
               </div>
-              <div id="headerRows"></div>
             </div>
-            <button id="addHeaderButton" class="inline-action" type="button">+ Add header</button>
           </section>
 
-          <section class="panel-section">
-            <div class="section-heading">
-              <span class="section-kicker">03 / BootNotification</span>
-              <h2>Charge point identity</h2>
-            </div>
-
-            <div class="field-grid">
-              <label class="field">
-                <span>Vendor</span>
-                <input id="vendorInput" name="chargePointVendor" type="text" value="Workbench EV" required />
-              </label>
-              <label class="field">
-                <span>Model</span>
-                <input id="modelInput" name="chargePointModel" type="text" value="Bench-16J" required />
-              </label>
-            </div>
-
-            <details class="advanced-fields">
-              <summary>Optional OCPP fields</summary>
+          <section class="card">
+            <header class="card-head"><h2>BootNotification</h2></header>
+            <div class="card-body">
               <div class="field-grid">
-                <label class="field"><span>Charge point serial</span><input id="chargePointSerialInput" type="text" /></label>
-                <label class="field"><span>Charge box serial</span><input id="chargeBoxSerialInput" type="text" /></label>
-                <label class="field"><span>Firmware version</span><input id="firmwareInput" type="text" /></label>
-                <label class="field"><span>ICCID</span><input id="iccidInput" type="text" /></label>
-                <label class="field"><span>IMSI</span><input id="imsiInput" type="text" /></label>
-                <label class="field"><span>Meter serial</span><input id="meterSerialInput" type="text" /></label>
-                <label class="field"><span>Meter type</span><input id="meterTypeInput" type="text" /></label>
+                <label class="field">
+                  <span>Vendor</span>
+                  <input id="vendorInput" name="chargePointVendor" type="text" value="Workbench EV" required />
+                </label>
+                <label class="field">
+                  <span>Model</span>
+                  <input id="modelInput" name="chargePointModel" type="text" value="Bench-16J" required />
+                </label>
               </div>
-            </details>
+
+              <details class="advanced-fields">
+                <summary>Optional OCPP fields</summary>
+                <div class="field-grid">
+                  <label class="field"><span>Charge point serial</span><input id="chargePointSerialInput" type="text" /></label>
+                  <label class="field"><span>Charge box serial</span><input id="chargeBoxSerialInput" type="text" /></label>
+                  <label class="field"><span>Firmware version</span><input id="firmwareInput" type="text" /></label>
+                  <label class="field"><span>ICCID</span><input id="iccidInput" type="text" /></label>
+                  <label class="field"><span>IMSI</span><input id="imsiInput" type="text" /></label>
+                  <label class="field"><span>Meter serial</span><input id="meterSerialInput" type="text" /></label>
+                  <label class="field"><span>Meter type</span><input id="meterTypeInput" type="text" /></label>
+                </div>
+              </details>
+            </div>
           </section>
 
           <div class="dock-actions">
@@ -148,30 +141,25 @@ export function createApp(root: HTMLElement): void {
           </div>
         </form>
 
-        <aside class="panel console-panel" aria-label="Session console">
-          <div class="console-header">
-            <div>
-              <p class="eyebrow">Live circuit trace</p>
-              <h2>Session console</h2>
+        <aside class="console-column">
+          <section id="resultCard" class="card result-card empty">
+            <header class="card-head"><h2>Result</h2></header>
+            <div class="card-body">
+              <p class="empty-note">Connect to a central system and send BootNotification to see the parsed response.</p>
             </div>
-            <div id="statusBadge" class="status-badge is-idle">Idle</div>
-          </div>
-
-          <section id="resultCard" class="result-card empty">
-            <span class="section-kicker">BootNotification result</span>
-            <h3>No response yet</h3>
-            <p>Connect to a central system and send BootNotification to see the parsed status, time, and interval here.</p>
           </section>
 
-          <section class="log-card">
-            <div class="log-toolbar">
-              <span>Raw frames and events</span>
+          <section class="card log-card">
+            <header class="card-head">
+              <h2>Session log</h2>
               <button id="clearLogButton" class="ghost" type="button">Clear</button>
+            </header>
+            <div class="card-body">
+              <ol id="eventLog" class="event-log" aria-live="polite"></ol>
             </div>
-            <ol id="eventLog" class="event-log" aria-live="polite"></ol>
           </section>
         </aside>
-      </section>
+      </div>
     </section>
   `;
 
@@ -193,7 +181,7 @@ export function createApp(root: HTMLElement): void {
 
   renderHeaders(headerRows, state.headers);
   renderTransport(root, caSection, caPath, state.caCertificatePath, state.allowInsecureTls);
-  renderStatus(root, statusBadge, connectButton, disconnectButton, bootButton, state.connectionState);
+  renderStatus(statusBadge, connectButton, disconnectButton, bootButton, state.connectionState);
   renderLog(eventLog, state.events);
 
   root.addEventListener('change', (event) => {
@@ -282,7 +270,7 @@ export function createApp(root: HTMLElement): void {
       pushLocalLog(state, getErrorMessage(error), 'error');
       renderLog(eventLog, state.events);
     } finally {
-      renderStatus(root, statusBadge, connectButton, disconnectButton, bootButton, state.connectionState);
+      renderStatus(statusBadge, connectButton, disconnectButton, bootButton, state.connectionState);
     }
   });
 
@@ -299,23 +287,16 @@ export function createApp(root: HTMLElement): void {
 
   bootButton.addEventListener('click', async () => {
     bootButton.disabled = true;
-    setNode(root, 'boot', 'is-active');
 
     try {
       const response = await window.oclient.sendBootNotification(collectBootPayload(root));
       state.bootResult = { type: 'boot-result', at: new Date().toISOString(), result: response };
       renderResult(resultCard, state.bootResult);
-      setNode(root, 'boot', 'is-complete');
-      setNode(root, 'result', 'is-active');
     } catch (error) {
       pushLocalLog(state, getErrorMessage(error), 'error');
       renderLog(eventLog, state.events);
     } finally {
-      renderStatus(root, statusBadge, connectButton, disconnectButton, bootButton, state.connectionState);
-      if (state.bootResult) {
-        setNode(root, 'boot', 'is-complete');
-        setNode(root, 'result', 'is-active');
-      }
+      renderStatus(statusBadge, connectButton, disconnectButton, bootButton, state.connectionState);
     }
   });
 
@@ -329,15 +310,13 @@ export function createApp(root: HTMLElement): void {
 
     if (event.type === 'status') {
       state.connectionState = event.status;
-      renderStatus(root, statusBadge, connectButton, disconnectButton, bootButton, state.connectionState);
+      renderStatus(statusBadge, connectButton, disconnectButton, bootButton, state.connectionState);
     }
 
     if (event.type === 'boot-result') {
       state.bootResult = event;
       renderResult(resultCard, event);
-      renderStatus(root, statusBadge, connectButton, disconnectButton, bootButton, state.connectionState);
-      setNode(root, 'boot', 'is-complete');
-      setNode(root, 'result', 'is-active');
+      renderStatus(statusBadge, connectButton, disconnectButton, bootButton, state.connectionState);
     }
 
     renderLog(eventLog, state.events);
@@ -446,7 +425,6 @@ function renderTransport(
 }
 
 function renderStatus(
-  root: HTMLElement,
   statusBadge: HTMLElement,
   connectButton: HTMLButtonElement,
   disconnectButton: HTMLButtonElement,
@@ -463,21 +441,6 @@ function renderStatus(
 
   statusBadge.className = `status-badge is-${status}`;
   statusBadge.textContent = labelForStatus(status);
-
-  for (const node of root.querySelectorAll<HTMLElement>('.state-line .node')) {
-    node.classList.remove('is-active', 'is-complete', 'is-error');
-  }
-
-  setNode(root, 'transport', 'is-active');
-
-  if (isConnected || isDisconnecting) {
-    setNode(root, 'transport', 'is-complete');
-    setNode(root, 'socket', 'is-active');
-  }
-
-  if (status === 'error') {
-    setNode(root, 'socket', 'is-error');
-  }
 }
 
 function renderLog(container: HTMLOListElement, events: SessionEvent[]): void {
@@ -507,44 +470,56 @@ function resetResult(
   state: { bootResult: (SessionEvent & { type: 'boot-result' }) | undefined }
 ): void {
   state.bootResult = undefined;
-  container.className = 'result-card empty';
+  container.className = 'card result-card empty';
   container.innerHTML = `
-    <span class="section-kicker">BootNotification result</span>
-    <h3>No response yet</h3>
-    <p>Connect to a central system and send BootNotification to see the parsed status, time, and interval here.</p>
+    <header class="card-head"><h2>Result</h2></header>
+    <div class="card-body">
+      <p class="empty-note">Connect to a central system and send BootNotification to see the parsed response.</p>
+    </div>
   `;
 }
 
 function renderResult(container: HTMLElement, event: SessionEvent & { type: 'boot-result' }): void {
-  container.className = 'result-card';
   container.replaceChildren();
 
-  const kicker = document.createElement('span');
-  kicker.className = 'section-kicker';
-  kicker.textContent = 'BootNotification result';
+  const head = document.createElement('header');
+  head.className = 'card-head';
+  const headTitle = document.createElement('h2');
+  headTitle.textContent = 'Result';
+  head.append(headTitle);
 
-  const title = document.createElement('h3');
+  const body = document.createElement('div');
+  body.className = 'card-body';
+
+  const title = document.createElement('p');
+  title.className = 'result-title';
+  const icon = document.createElement('span');
+  icon.className = 'result-icon';
+  title.append(icon);
 
   const details = document.createElement('dl');
   details.className = 'result-grid';
 
+  let statusClass = 'unknown';
   if (event.result.type === 'callResult') {
     const result = event.result as BootNotificationCallResult;
-    container.classList.add(`status-${(result.status ?? 'unknown').toLowerCase()}`);
-    title.textContent = result.status ?? 'CALLRESULT received';
+    statusClass = (result.status ?? 'unknown').toLowerCase();
+    title.append(document.createTextNode(result.status ?? 'CALLRESULT received'));
     appendDefinition(details, 'Current time', result.currentTime ?? 'Not supplied');
     appendDefinition(details, 'Interval', result.interval === undefined ? 'Not supplied' : `${result.interval} seconds`);
     appendDefinition(details, 'Request ID', result.uniqueId);
   } else {
     const result = event.result as BootNotificationCallError;
-    container.classList.add('status-rejected');
-    title.textContent = result.errorCode;
+    statusClass = 'rejected';
+    title.append(document.createTextNode(result.errorCode));
     appendDefinition(details, 'Description', result.errorDescription || 'No description');
     appendDefinition(details, 'Details', formatResultDetails(result.errorDetails));
     appendDefinition(details, 'Request ID', result.uniqueId);
   }
 
-  container.append(kicker, title, details);
+  body.append(title, details);
+  container.className = `card result-card status-${statusClass}`;
+  container.append(head, body);
 }
 
 function appendDefinition(list: HTMLDListElement, term: string, value: string): void {
@@ -573,10 +548,6 @@ function formatResultDetails(value: unknown): string {
   }
 
   return String(value);
-}
-
-function setNode(root: HTMLElement, step: string, className: string): void {
-  root.querySelector<HTMLElement>(`.state-line .node[data-step="${step}"]`)?.classList.add(className);
 }
 
 function collectHeaders(headers: HeaderDraft[]): HeaderEntry[] {
