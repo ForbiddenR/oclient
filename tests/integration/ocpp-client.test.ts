@@ -163,4 +163,47 @@ describe('OcppClient integration', () => {
 
     await trustedClient.disconnect();
   });
+
+  it('connects over wss with an untrusted certificate when insecure TLS is allowed', async () => {
+    const httpsServer = createHttpsServer({
+      cert: readFileSync(resolve(certDir, 'server.crt')),
+      key: readFileSync(resolve(certDir, 'server.key'))
+    });
+    const server = new WebSocketServer({ server: httpsServer });
+    servers.push(server, httpsServer);
+
+    server.on('connection', (socket) => {
+      socket.on('message', (message) => {
+        const frame = JSON.parse(message.toString()) as [2, string, string, Record<string, unknown>];
+        socket.send(JSON.stringify([3, frame[1], { status: 'Accepted', currentTime: '2026-07-03T10:00:00Z', interval: 90 }]));
+      });
+    });
+
+    httpsServer.listen(0, '127.0.0.1');
+    await once(httpsServer, 'listening');
+    const address = httpsServer.address() as AddressInfo;
+
+    const client = new OcppClient();
+    const result = await client.connect({
+      protocol: 'wss',
+      address: `127.0.0.1:${address.port}/CP001`,
+      headers: [],
+      allowInsecureTls: true
+    });
+
+    expect(result.ok).toBe(true);
+
+    const response = await client.sendBootNotification({
+      chargePointVendor: 'Acme',
+      chargePointModel: 'Model 7'
+    });
+
+    expect(response).toMatchObject({
+      type: 'callResult',
+      status: 'Accepted',
+      interval: 90
+    });
+
+    await client.disconnect();
+  });
 });

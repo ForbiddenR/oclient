@@ -71,6 +71,7 @@ export class OcppClient {
     let headers: Record<string, string>;
     let ca: Buffer | undefined;
     let subprotocol: string;
+    let rejectUnauthorized: boolean;
 
     try {
       subprotocol = normalizeSubprotocol(config.subprotocol);
@@ -78,6 +79,7 @@ export class OcppClient {
       url = normalizeConnectionUrl(config.protocol, config.address);
       protocol = getProtocolFromUrl(url);
       headers = normalizeCustomHeaders(config.headers ?? []);
+      rejectUnauthorized = normalizeRejectUnauthorized(protocol, config.allowInsecureTls);
 
       if (protocol === 'wss' && config.caCertificatePath) {
         ca = await readFile(config.caCertificatePath);
@@ -94,10 +96,14 @@ export class OcppClient {
     this.setStatus('connecting', `Opening ${url}`);
     this.log('info', `Connecting with ${subprotocol} over ${protocol.toUpperCase()}.`);
 
+    if (!rejectUnauthorized) {
+      this.log('warn', 'TLS certificate validation is disabled. The server identity will not be verified.');
+    }
+
     const socket = new WebSocket(url, subprotocol, {
       ca,
       headers,
-      rejectUnauthorized: true
+      rejectUnauthorized
     });
 
     this.socket = socket;
@@ -419,6 +425,18 @@ function normalizeRequestTimeout(timeoutMs?: number): number {
   }
 
   return Math.round(timeoutMs);
+}
+
+function normalizeRejectUnauthorized(protocol: TransportProtocol, allowInsecureTls?: boolean): boolean {
+  if (!allowInsecureTls) {
+    return true;
+  }
+
+  if (protocol !== 'wss') {
+    throw new OcppClientError('Insecure TLS is only relevant for wss connections.');
+  }
+
+  return false;
 }
 
 function readUpgradeResponseBody(response: IncomingMessage): Promise<string> {

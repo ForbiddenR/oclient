@@ -21,6 +21,7 @@ export function createApp(root: HTMLElement): void {
   const state = {
     headers: [createHeaderDraft()],
     caCertificatePath: '',
+    allowInsecureTls: false,
     connectionState: 'idle' as ConnectionState,
     events: [] as SessionEvent[],
     bootResult: undefined as SessionEvent & { type: 'boot-result' } | undefined
@@ -84,6 +85,11 @@ export function createApp(root: HTMLElement): void {
                 <button id="pickCaButton" class="secondary" type="button">Choose CA</button>
                 <button id="clearCaButton" class="ghost" type="button">Clear</button>
               </div>
+              <label class="insecure-toggle">
+                <input id="insecureTlsInput" type="checkbox" />
+                <span>Allow insecure TLS</span>
+                <small>Skip server certificate validation. Use only for testing self-signed CSMS certificates.</small>
+              </label>
             </div>
           </section>
 
@@ -174,6 +180,7 @@ export function createApp(root: HTMLElement): void {
   const caPath = mustQuery<HTMLElement>(root, '#caPath');
   const pickCaButton = mustQuery<HTMLButtonElement>(root, '#pickCaButton');
   const clearCaButton = mustQuery<HTMLButtonElement>(root, '#clearCaButton');
+  const insecureTlsInput = mustQuery<HTMLInputElement>(root, '#insecureTlsInput');
   const addHeaderButton = mustQuery<HTMLButtonElement>(root, '#addHeaderButton');
   const headerRows = mustQuery<HTMLElement>(root, '#headerRows');
   const connectButton = mustQuery<HTMLButtonElement>(root, '#connectButton');
@@ -185,7 +192,7 @@ export function createApp(root: HTMLElement): void {
   const resultCard = mustQuery<HTMLElement>(root, '#resultCard');
 
   renderHeaders(headerRows, state.headers);
-  renderTransport(root, caSection, caPath, state.caCertificatePath);
+  renderTransport(root, caSection, caPath, state.caCertificatePath, state.allowInsecureTls);
   renderStatus(root, statusBadge, connectButton, disconnectButton, bootButton, state.connectionState);
   renderLog(eventLog, state.events);
 
@@ -193,7 +200,12 @@ export function createApp(root: HTMLElement): void {
     const target = event.target;
 
     if (target instanceof HTMLInputElement && target.name === 'protocol') {
-      renderTransport(root, caSection, caPath, state.caCertificatePath);
+      state.allowInsecureTls = false;
+      renderTransport(root, caSection, caPath, state.caCertificatePath, state.allowInsecureTls);
+    }
+
+    if (target instanceof HTMLInputElement && target.id === 'insecureTlsInput') {
+      state.allowInsecureTls = target.checked;
     }
 
     if (target instanceof HTMLInputElement && target.dataset.headerField) {
@@ -238,13 +250,13 @@ export function createApp(root: HTMLElement): void {
     const result = await window.oclient.pickCaCertificate();
     if (!result.canceled && result.filePath) {
       state.caCertificatePath = result.filePath;
-      renderTransport(root, caSection, caPath, state.caCertificatePath);
+      renderTransport(root, caSection, caPath, state.caCertificatePath, state.allowInsecureTls);
     }
   });
 
   clearCaButton.addEventListener('click', () => {
     state.caCertificatePath = '';
-    renderTransport(root, caSection, caPath, state.caCertificatePath);
+    renderTransport(root, caSection, caPath, state.caCertificatePath, state.allowInsecureTls);
   });
 
   form.addEventListener('submit', async (event) => {
@@ -258,7 +270,8 @@ export function createApp(root: HTMLElement): void {
         address: inputValue(root, '#addressInput'),
         subprotocol: inputValue(root, '#subprotocolInput'),
         caCertificatePath: state.caCertificatePath || undefined,
-        headers: collectHeaders(state.headers)
+        headers: collectHeaders(state.headers),
+        allowInsecureTls: state.allowInsecureTls
       });
 
       if (!result.ok) {
@@ -415,10 +428,21 @@ function syncHeaderDraftFromInput(input: HTMLInputElement, headers: HeaderDraft[
   }
 }
 
-function renderTransport(root: HTMLElement, caSection: HTMLElement, caPath: HTMLElement, selectedPath: string): void {
+function renderTransport(
+  root: HTMLElement,
+  caSection: HTMLElement,
+  caPath: HTMLElement,
+  selectedPath: string,
+  allowInsecureTls: boolean
+): void {
   const isSecure = getSelectedProtocol(root) === 'wss';
   caSection.hidden = !isSecure;
   caPath.textContent = selectedPath || 'No certificate selected';
+
+  const insecureTlsInput = root.querySelector<HTMLInputElement>('#insecureTlsInput');
+  if (insecureTlsInput) {
+    insecureTlsInput.checked = allowInsecureTls;
+  }
 }
 
 function renderStatus(

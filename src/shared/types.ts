@@ -22,6 +22,7 @@ export interface ConnectConfig {
   headers: HeaderEntry[];
   subprotocol?: string;
   requestTimeoutMs?: number;
+  allowInsecureTls?: boolean;
 }
 
 export interface ConnectResult {

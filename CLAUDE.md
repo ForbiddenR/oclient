@@ -55,6 +55,7 @@ For connection configuration:
 - If the address includes `ws://` or `wss://`, that scheme is preserved.
 - Non-WebSocket URL schemes are rejected.
 - CA certificates are read only in the main process and only for `wss` connections.
+- `allowInsecureTls` sets `rejectUnauthorized: false` for `wss` connections, skipping server certificate validation. It is rejected for non-`wss` connections.
 - Custom headers skip disabled/blank rows, reject invalid header names, reject duplicates case-insensitively, and reject reserved WebSocket handshake headers such as `Host`, `Connection`, `Upgrade`, and `Sec-WebSocket-*`.
 
 ## Testing and verification
