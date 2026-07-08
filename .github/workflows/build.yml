@@ -33,14 +33,10 @@ jobs:
         run: npm run build
 
   package:
-    name: Package (${{ matrix.os }})
+    name: Package (windows)
     needs: validate
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: windows-latest
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: false
     steps:
@@ -58,8 +54,29 @@ jobs:
       - name: Package app
         run: npm run dist
 
-      - name: Upload packaged artifacts
+      - name: Copy compiled files to release folder
+        shell: bash
+        run: |
+          mkdir -p release/dist
+          cp -r dist/. release/dist/
+
+      - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: oclient-${{ matrix.os }}
-          path: release/**
+          name: oclient-windows-installer
+          path: release/*-installer-*.exe
+          if-no-files-found: error
+
+      - name: Upload portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: oclient-windows-portable
+          path: release/*-portable-*.exe
+          if-no-files-found: error
+
+      - name: Upload compiled files
+        uses: actions/upload-artifact@v4
+        with:
+          name: oclient-compiled
+          path: release/dist/**
+          if-no-files-found: error
