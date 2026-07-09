@@ -228,7 +228,7 @@ export function createApp(root: HTMLElement): void {
       if (result.ok) {
         state.connectResult = result;
       } else {
-        pushLocalLog(state, `Connection failed: ${result.error ?? 'Unknown error.'}`, 'error');
+        pushLocalLog(state, `连接失败： ${result.error ?? '未知错误。'}`, 'error');
       }
     } catch (error) {
       pushLocalLog(state, getErrorMessage(error), 'error');
@@ -296,30 +296,30 @@ export function createApp(root: HTMLElement): void {
 
 function buildAppMarkup(): string {
   return `
-    <section class="app-shell" aria-label="OCPP Client dashboard">
-      <aside class="rail" aria-label="Application navigation">
+    <section class="app-shell" aria-label="OCPP 客户端仪表盘">
+      <aside class="rail" aria-label="应用导航">
         <div class="rail-brand">
           <span class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/></svg>
           </span>
           <div>
-            <h1>OCPP Client</h1>
-            <p>OCPP 1.6J test bench</p>
+            <h1>OCPP 客户端</h1>
+            <p>OCPP 1.6J 测试台</p>
           </div>
         </div>
 
-        <nav class="rail-nav" aria-label="Dashboard sections">
-          <a class="active" href="#dashboard">Dashboard</a>
-          <a href="#messages">Message log</a>
+        <nav class="rail-nav" aria-label="仪表盘分区">
+          <a class="active" href="#dashboard">仪表盘</a>
+          <a href="#messages">消息日志</a>
           <a href="#boot">BootNotification</a>
-          <a href="#settings">Connection settings</a>
+          <a href="#settings">连接设置</a>
         </nav>
 
-        <div class="rail-summary" aria-label="Current session summary">
+        <div class="rail-summary" aria-label="当前会话摘要">
           <div class="rail-status-line"><span class="status-dot" aria-hidden="true"></span><span id="railStatus">Idle</span></div>
           <dl>
-            <div><dt>Duration</dt><dd id="railDuration">—</dd></div>
-            <div><dt>OCPP version</dt><dd id="railVersion">1.6J</dd></div>
+            <div><dt>连接时长</dt><dd id="railDuration">—</dd></div>
+            <div><dt>OCPP 版本</dt><dd id="railVersion">1.6J</dd></div>
           </dl>
         </div>
       </aside>
@@ -327,45 +327,45 @@ function buildAppMarkup(): string {
       <main class="dashboard">
         <header class="dashboard-topbar">
           <div>
-            <p class="eyebrow">OCPP 1.6J over WebSocket</p>
-            <h2>Dashboard</h2>
+            <p class="eyebrow">基于 WebSocket 的 OCPP 1.6J</p>
+            <h2>仪表盘</h2>
           </div>
-          <div class="session-actions" aria-label="Session actions">
-            <button id="connectButton" class="primary" type="submit" form="controlForm">Connect</button>
-            <button id="disconnectButton" class="secondary" type="button" disabled>Disconnect</button>
-            <button id="bootButton" class="accent" type="button" disabled>Send BootNotification</button>
+          <div class="session-actions" aria-label="会话操作">
+            <button id="connectButton" class="primary" type="submit" form="controlForm">连接</button>
+            <button id="disconnectButton" class="secondary" type="button" disabled>断开连接</button>
+            <button id="bootButton" class="accent" type="button" disabled>发送 BootNotification</button>
           </div>
         </header>
 
-        <section id="dashboard" class="card connection-card" aria-label="Connection status">
+        <section id="dashboard" class="card connection-card" aria-label="连接状态">
           <header class="card-head">
             <div>
-              <p class="eyebrow">Connection status</p>
-              <h3>Central system session</h3>
+              <p class="eyebrow">连接状态</p>
+              <h3>中央系统会话</h3>
             </div>
             <div id="statusBadge" class="status-badge is-idle">Idle</div>
           </header>
           <div id="overviewGrid" class="overview-grid"></div>
         </section>
 
-        <section id="metricGrid" class="metrics-grid" aria-label="Session metrics"></section>
+        <section id="metricGrid" class="metrics-grid" aria-label="会话指标"></section>
 
         <div class="content-grid">
           <section id="messages" class="card log-card">
             <header class="card-head">
               <div>
-                <p class="eyebrow">Messages</p>
-                <h3>Session log</h3>
+                <p class="eyebrow">消息</p>
+                <h3>消息日志</h3>
               </div>
-              <button id="clearLogButton" class="ghost" type="button">Clear</button>
+              <button id="clearLogButton" class="ghost" type="button">清空</button>
             </header>
-            <div class="log-table" role="table" aria-label="OCPP session messages">
+            <div class="log-table" role="table" aria-label="OCPP 会话消息">
               <div class="log-row log-head" role="row">
-                <span role="columnheader">Time</span>
-                <span role="columnheader">Direction</span>
-                <span role="columnheader">Type</span>
-                <span role="columnheader">Request ID</span>
-                <span role="columnheader">Summary</span>
+                <span role="columnheader">时间</span>
+                <span role="columnheader">方向</span>
+                <span role="columnheader">类型</span>
+                <span role="columnheader">请求 ID</span>
+                <span role="columnheader">摘要</span>
               </div>
               <div id="eventLog" class="log-rows" aria-live="polite"></div>
             </div>
@@ -375,32 +375,32 @@ function buildAppMarkup(): string {
             <section id="boot" class="card boot-card">
               <header class="card-head">
                 <div>
-                  <p class="eyebrow">Composer</p>
+                  <p class="eyebrow">编辑器</p>
                   <h3>BootNotification</h3>
                 </div>
               </header>
               <div class="card-body">
                 <div class="field-grid">
                   <label class="field">
-                    <span>Vendor</span>
+                    <span>厂商</span>
                     <input id="vendorInput" name="chargePointVendor" type="text" value="Workbench EV" required />
                   </label>
                   <label class="field">
-                    <span>Model</span>
+                    <span>型号</span>
                     <input id="modelInput" name="chargePointModel" type="text" value="Bench-16J" required />
                   </label>
                 </div>
 
                 <details class="advanced-fields">
-                  <summary>Optional OCPP fields</summary>
+                  <summary>可选 OCPP 字段</summary>
                   <div class="field-grid">
-                    <label class="field"><span>Charge point serial</span><input id="chargePointSerialInput" type="text" /></label>
-                    <label class="field"><span>Charge box serial</span><input id="chargeBoxSerialInput" type="text" /></label>
-                    <label class="field"><span>Firmware version</span><input id="firmwareInput" type="text" /></label>
+                    <label class="field"><span>充电点序列号</span><input id="chargePointSerialInput" type="text" /></label>
+                    <label class="field"><span>充电盒序列号</span><input id="chargeBoxSerialInput" type="text" /></label>
+                    <label class="field"><span>固件版本</span><input id="firmwareInput" type="text" /></label>
                     <label class="field"><span>ICCID</span><input id="iccidInput" type="text" /></label>
                     <label class="field"><span>IMSI</span><input id="imsiInput" type="text" /></label>
-                    <label class="field"><span>Meter serial</span><input id="meterSerialInput" type="text" /></label>
-                    <label class="field"><span>Meter type</span><input id="meterTypeInput" type="text" /></label>
+                    <label class="field"><span>电表序列号</span><input id="meterSerialInput" type="text" /></label>
+                    <label class="field"><span>电表类型</span><input id="meterTypeInput" type="text" /></label>
                   </div>
                 </details>
               </div>
@@ -409,20 +409,20 @@ function buildAppMarkup(): string {
             <section id="resultCard" class="card result-card empty">
               <header class="card-head">
                 <div>
-                  <p class="eyebrow">Parsed response</p>
-                  <h3>BootNotification result</h3>
+                  <p class="eyebrow">解析响应</p>
+                  <h3>BootNotification 结果</h3>
                 </div>
               </header>
               <div class="card-body">
-                <p class="empty-note">Connect to a central system and send BootNotification to see the parsed response.</p>
+                <p class="empty-note">连接到中央系统并发送 BootNotification 后查看解析响应。</p>
               </div>
             </section>
 
             <section class="card notices-card">
               <header class="card-head">
                 <div>
-                  <p class="eyebrow">Activity</p>
-                  <h3>Recent notices</h3>
+                  <p class="eyebrow">活动</p>
+                  <h3>最近通知</h3>
                 </div>
               </header>
               <div id="noticesList" class="notice-list"></div>
@@ -431,12 +431,12 @@ function buildAppMarkup(): string {
             <section id="settings" class="card settings-card">
               <header class="card-head">
                 <div>
-                  <p class="eyebrow">Setup</p>
-                  <h3>Connection settings</h3>
+                  <p class="eyebrow">设置</p>
+                  <h3>连接设置</h3>
                 </div>
               </header>
               <div class="card-body">
-                <div class="segmented" role="radiogroup" aria-label="Transport protocol">
+                <div class="segmented" role="radiogroup" aria-label="传输协议">
                   <label>
                     <input type="radio" name="protocol" value="ws" checked />
                     <span>ws</span>
@@ -448,29 +448,29 @@ function buildAppMarkup(): string {
                 </div>
 
                 <label class="field">
-                  <span>Endpoint</span>
+                  <span>端点</span>
                   <input id="addressInput" name="address" type="text" value="127.0.0.1:9000/CP001" autocomplete="off" spellcheck="false" />
-                  <small>Use a full URL or omit the scheme and let the selected transport apply it.</small>
+                  <small>可使用完整 URL，也可省略协议并由所选传输方式自动补全。</small>
                 </label>
 
                 <label class="field compact">
-                  <span>Subprotocol</span>
+                  <span>子协议</span>
                   <input id="subprotocolInput" name="subprotocol" type="text" value="ocpp1.6" autocomplete="off" spellcheck="false" />
                 </label>
 
                 <div id="caSection" class="certificate-card" hidden>
                   <div>
-                    <span class="field-label">CA certificate</span>
-                    <p id="caPath" class="path-readout">No certificate selected</p>
+                    <span class="field-label">CA 证书</span>
+                    <p id="caPath" class="path-readout">未选择证书</p>
                   </div>
                   <div class="button-row tight">
-                    <button id="pickCaButton" class="secondary" type="button">Choose CA</button>
-                    <button id="clearCaButton" class="ghost" type="button">Clear</button>
+                    <button id="pickCaButton" class="secondary" type="button">选择 CA</button>
+                    <button id="clearCaButton" class="ghost" type="button">清空</button>
                   </div>
                   <label class="insecure-toggle">
                     <input id="insecureTlsInput" type="checkbox" />
-                    <span>Allow insecure TLS</span>
-                    <small>Skip server certificate validation. Use only for testing self-signed CSMS certificates.</small>
+                    <span>允许不安全 TLS</span>
+                    <small>跳过服务器证书验证。仅用于测试自签名 CSMS 证书。</small>
                   </label>
                 </div>
               </div>
@@ -479,17 +479,17 @@ function buildAppMarkup(): string {
             <section class="card headers-card">
               <header class="card-head">
                 <div>
-                  <p class="eyebrow">Handshake</p>
-                  <h3>Custom headers</h3>
+                  <p class="eyebrow">握手</p>
+                  <h3>自定义请求头</h3>
                 </div>
-                <button id="addHeaderButton" class="inline-action" type="button">+ Add header</button>
+                <button id="addHeaderButton" class="inline-action" type="button">+ 添加请求头</button>
               </header>
               <div class="card-body">
-                <div class="header-table" role="group" aria-label="Custom headers">
+                <div class="header-table" role="group" aria-label="自定义请求头">
                   <div class="header-row header-head" aria-hidden="true">
-                    <span>On</span>
-                    <span>Name</span>
-                    <span>Value</span>
+                    <span>启用</span>
+                    <span>名称</span>
+                    <span>值</span>
                     <span></span>
                   </div>
                   <div id="headerRows"></div>
@@ -540,7 +540,7 @@ function createCheckbox(header: HeaderDraft): HTMLLabelElement {
   input.checked = header.enabled;
   input.dataset.headerId = header.id;
   input.dataset.headerField = 'enabled';
-  input.setAttribute('aria-label', 'Enable header');
+  input.setAttribute('aria-label', '启用请求头');
 
   label.append(input, document.createElement('span'));
   return label;
@@ -555,7 +555,7 @@ function createHeaderInput(header: HeaderDraft, field: 'name' | 'value', placeho
   input.dataset.headerField = field;
   input.spellcheck = false;
   input.autocomplete = 'off';
-  input.setAttribute('aria-label', field === 'name' ? 'Header name' : 'Header value');
+  input.setAttribute('aria-label', field === 'name' ? '请求头名称' : '请求头值');
   return input;
 }
 
@@ -564,7 +564,7 @@ function createRemoveButton(id: string): HTMLButtonElement {
   button.type = 'button';
   button.className = 'row-delete';
   button.dataset.removeHeader = id;
-  button.textContent = 'Remove';
+  button.textContent = '删除';
   return button;
 }
 
@@ -596,7 +596,7 @@ function renderTransport(
 ): void {
   const isSecure = getSelectedProtocol(root) === 'wss';
   caSection.hidden = !isSecure;
-  caPath.textContent = selectedPath || 'No certificate selected';
+  caPath.textContent = selectedPath || '未选择证书';
 
   const insecureTlsInput = root.querySelector<HTMLInputElement>('#insecureTlsInput');
   if (insecureTlsInput) {
@@ -623,11 +623,11 @@ function renderConnectionOverview(container: HTMLElement, root: HTMLElement, sta
   const summary = deriveConnectionSummary(root, state);
   container.replaceChildren(
     createDefinitionTile('WebSocket URL', summary.url),
-    createDefinitionTile('Charge point ID', summary.chargePointId),
-    createDefinitionTile('OCPP version', summary.ocppVersion),
-    createDefinitionTile('Connected at', summary.connectedAt),
-    createDefinitionTile('Duration', summary.duration),
-    createDefinitionTile('Heartbeat interval', summary.interval)
+    createDefinitionTile('充电点 ID', summary.chargePointId),
+    createDefinitionTile('OCPP 版本', summary.ocppVersion),
+    createDefinitionTile('连接时间', summary.connectedAt),
+    createDefinitionTile('连接时长', summary.duration),
+    createDefinitionTile('心跳间隔', summary.interval)
   );
 }
 
@@ -647,11 +647,11 @@ function createDefinitionTile(label: string, value: string): HTMLDivElement {
 function renderSessionMetrics(container: HTMLElement, state: AppState): void {
   const metrics = deriveSessionMetrics(state);
   container.replaceChildren(
-    createMetricCard('Total frames', String(metrics.totalFrames), 'OCPP-J frames', 'neutral'),
-    createMetricCard('Outbound', String(metrics.outboundFrames), `${metrics.outboundPercent}% of frames`, 'outbound'),
-    createMetricCard('Inbound', String(metrics.inboundFrames), `${metrics.inboundPercent}% of frames`, 'inbound'),
-    createMetricCard('Boot status', metrics.bootStatus, metrics.bootDetail, 'boot'),
-    createMetricCard('Errors', String(metrics.errors), metrics.errors === 1 ? 'Needs attention' : 'Log events', metrics.errors > 0 ? 'error' : 'neutral')
+    createMetricCard('总帧数', String(metrics.totalFrames), 'OCPP-J 帧', 'neutral'),
+    createMetricCard('发送', String(metrics.outboundFrames), `${metrics.outboundPercent}% 帧占比`, 'outbound'),
+    createMetricCard('接收', String(metrics.inboundFrames), `${metrics.inboundPercent}% 帧占比`, 'inbound'),
+    createMetricCard('Boot 状态', metrics.bootStatus, metrics.bootDetail, 'boot'),
+    createMetricCard('错误', String(metrics.errors), metrics.errors === 1 ? '需要处理' : '日志事件', metrics.errors > 0 ? 'error' : 'neutral')
   );
 }
 
@@ -682,7 +682,7 @@ function renderLog(container: HTMLElement, events: SessionEvent[]): void {
   if (events.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'log-empty';
-    empty.textContent = 'No session messages yet.';
+    empty.textContent = '暂无会话消息。';
     container.replaceChildren(empty);
     return;
   }
@@ -723,12 +723,12 @@ function resetResult(container: HTMLElement, state: { bootResult?: BootResultEve
   container.innerHTML = `
     <header class="card-head">
       <div>
-        <p class="eyebrow">Parsed response</p>
-        <h3>BootNotification result</h3>
+        <p class="eyebrow">解析响应</p>
+        <h3>BootNotification 结果</h3>
       </div>
     </header>
     <div class="card-body">
-      <p class="empty-note">Connect to a central system and send BootNotification to see the parsed response.</p>
+      <p class="empty-note">连接到中央系统并发送 BootNotification 后查看解析响应。</p>
     </div>
   `;
 }
@@ -741,9 +741,9 @@ function renderResult(container: HTMLElement, event: BootResultEvent): void {
   const headWrap = document.createElement('div');
   const eyebrow = document.createElement('p');
   eyebrow.className = 'eyebrow';
-  eyebrow.textContent = 'Parsed response';
+  eyebrow.textContent = '解析响应';
   const headTitle = document.createElement('h3');
-  headTitle.textContent = 'BootNotification result';
+  headTitle.textContent = 'BootNotification 结果';
   headWrap.append(eyebrow, headTitle);
   head.append(headWrap);
 
@@ -764,16 +764,16 @@ function renderResult(container: HTMLElement, event: BootResultEvent): void {
     const result = event.result as BootNotificationCallResult;
     statusClass = (result.status ?? 'unknown').toLowerCase();
     title.append(document.createTextNode(result.status ?? 'CALLRESULT received'));
-    appendDefinition(details, 'Current time', result.currentTime ? formatTimestamp(result.currentTime) : EMPTY_VALUE);
-    appendDefinition(details, 'Interval', result.interval === undefined ? EMPTY_VALUE : formatInterval(result.interval));
+    appendDefinition(details, '当前时间', result.currentTime ? formatTimestamp(result.currentTime) : EMPTY_VALUE);
+    appendDefinition(details, '间隔', result.interval === undefined ? EMPTY_VALUE : formatInterval(result.interval));
     appendDefinition(details, 'Request ID', result.uniqueId);
-    appendDefinition(details, 'Raw payload', formatResultDetails(result.rawPayload));
+    appendDefinition(details, '原始载荷', formatResultDetails(result.rawPayload));
   } else {
     const result = event.result as BootNotificationCallError;
     statusClass = 'rejected';
     title.append(document.createTextNode(result.errorCode));
-    appendDefinition(details, 'Description', result.errorDescription || EMPTY_VALUE);
-    appendDefinition(details, 'Details', formatResultDetails(result.errorDetails));
+    appendDefinition(details, '描述', result.errorDescription || EMPTY_VALUE);
+    appendDefinition(details, '详情', formatResultDetails(result.errorDetails));
     appendDefinition(details, 'Request ID', result.uniqueId);
   }
 
@@ -788,7 +788,7 @@ function renderNotices(container: HTMLElement, events: SessionEvent[], bootResul
   if (notices.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'empty-note notice-empty';
-    empty.textContent = 'No recent notices.';
+    empty.textContent = '暂无最近通知。';
     container.replaceChildren(empty);
     return;
   }
@@ -899,7 +899,7 @@ function deriveEventRows(events: SessionEvent[]): Array<{
         const body = prettyJson(event.raw);
         return {
           time: formatTime(event.at),
-          direction: event.direction === 'out' ? 'Outbound' : 'Inbound',
+          direction: event.direction === 'out' ? '发送' : '接收',
           directionTone: event.direction === 'out' ? 'out' : 'in',
           type: event.summary?.displayName ?? 'OCPP frame',
           requestId: event.summary?.uniqueId ?? EMPTY_VALUE,
@@ -912,7 +912,7 @@ function deriveEventRows(events: SessionEvent[]): Array<{
       if (event.type === 'status') {
         return {
           time: formatTime(event.at),
-          direction: 'Status',
+          direction: '状态',
           directionTone: event.status === 'error' ? 'error' : 'status',
           type: labelForStatus(event.status),
           requestId: EMPTY_VALUE,
@@ -927,9 +927,9 @@ function deriveEventRows(events: SessionEvent[]): Array<{
         const full = JSON.stringify(event.result, null, 2);
         return {
           time: formatTime(event.at),
-          direction: 'Parsed',
+          direction: '解析',
           directionTone: event.result.type === 'callError' ? 'error' : 'success',
-          type: 'BootNotification result',
+          type: 'BootNotification 结果',
           requestId: event.result.uniqueId,
           summary,
           full,
@@ -941,7 +941,7 @@ function deriveEventRows(events: SessionEvent[]): Array<{
         time: formatTime(event.at),
         direction: event.level,
         directionTone: event.level,
-        type: event.level === 'success' ? 'Success' : event.level === 'warn' ? 'Warning' : event.level === 'error' ? 'Error' : 'Info',
+        type: event.level === 'success' ? '成功' : event.level === 'warn' ? '警告' : event.level === 'error' ? '错误' : '信息',
         requestId: EMPTY_VALUE,
         summary: event.message,
         full: event.message,
@@ -976,10 +976,10 @@ function deriveRecentNotices(events: SessionEvent[], bootResult?: BootResultEven
 
 function bootResultMessage(event: BootResultEvent): string {
   if (event.result.type === 'callResult') {
-    return `BootNotification ${event.result.status ?? 'response received'}.`;
+    return `BootNotification ${event.result.status ?? '已收到响应'}。`;
   }
 
-  return `BootNotification failed: ${event.result.errorCode}.`;
+  return `BootNotification 失败：${event.result.errorCode}。`;
 }
 
 function formatResultDetails(value: unknown): string {
@@ -1156,16 +1156,16 @@ function getBootStatus(event?: BootResultEvent): string {
     return EMPTY_VALUE;
   }
 
-  return event.result.type === 'callResult' ? event.result.status ?? 'Received' : 'Failed';
+  return event.result.type === 'callResult' ? event.result.status ?? '已收到' : '失败';
 }
 
 function getBootDetail(event?: BootResultEvent): string {
   if (!event) {
-    return 'No response yet';
+    return '暂无响应';
   }
 
   if (event.result.type === 'callResult') {
-    return event.result.interval === undefined ? 'Response received' : `Interval ${formatInterval(event.result.interval)}`;
+    return event.result.interval === undefined ? '已收到响应' : `间隔 ${formatInterval(event.result.interval)}`;
   }
 
   return event.result.errorCode;
@@ -1185,12 +1185,12 @@ function metricIconForVariant(variant: string): string {
 
 function labelForStatus(status: ConnectionState): string {
   const labels: Record<ConnectionState, string> = {
-    idle: 'Idle',
-    connecting: 'Connecting',
-    connected: 'Connected',
-    disconnecting: 'Closing',
-    disconnected: 'Disconnected',
-    error: 'Error'
+    idle: '空闲',
+    connecting: '连接中',
+    connected: '已连接',
+    disconnecting: '断开中',
+    disconnected: '已断开',
+    error: '错误'
   };
 
   return labels[status];

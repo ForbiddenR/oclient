@@ -999,7 +999,7 @@ p {
   padding: 18px;
 }
 
-@media (max-width: 1280px) {
+@media (max-width: 900px) {
   body {
     min-width: 0;
   }
