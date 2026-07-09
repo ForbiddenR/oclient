@@ -1028,7 +1028,7 @@ p {
   }
 
   .rail-brand div,
-  .rail-nav a span,
+  .rail-nav a span:not(.rail-icon),
   .rail-summary {
     display: none;
   }
