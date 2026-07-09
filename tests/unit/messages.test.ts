@@ -6,6 +6,7 @@ import {
   OCPP_CALL_RESULT,
   OcppMessageError,
   parseOcppFrame,
+  summarizeOcppFrame,
   toBootNotificationResponse
 } from '../../src/main/ocpp/messages';
 
@@ -100,5 +101,38 @@ describe('OCPP BootNotification messages', () => {
     expect(() => parseOcppFrame(JSON.stringify({ messageTypeId: 3 }))).toThrow(OcppMessageError);
     expect(() => parseOcppFrame(JSON.stringify([9, uniqueId, {}]))).toThrow(OcppMessageError);
     expect(() => parseOcppFrame(JSON.stringify([OCPP_CALL_RESULT, '', {}]))).toThrow(OcppMessageError);
+  });
+
+  it('summarizes OCPP CALL frames for renderer display', () => {
+    expect(summarizeOcppFrame(JSON.stringify([OCPP_CALL, uniqueId, 'BootNotification', {}]))).toEqual({
+      messageTypeId: OCPP_CALL,
+      kind: 'CALL',
+      uniqueId,
+      action: 'BootNotification',
+      displayName: 'BootNotification'
+    });
+  });
+
+  it('summarizes OCPP CALLRESULT frames for renderer display', () => {
+    expect(summarizeOcppFrame(JSON.stringify([OCPP_CALL_RESULT, uniqueId, { status: 'Accepted' }]))).toEqual({
+      messageTypeId: OCPP_CALL_RESULT,
+      kind: 'CALLRESULT',
+      uniqueId,
+      displayName: 'CALLRESULT'
+    });
+  });
+
+  it('summarizes OCPP CALLERROR frames for renderer display', () => {
+    expect(summarizeOcppFrame(JSON.stringify([OCPP_CALL_ERROR, uniqueId, 'SecurityError', 'Certificate rejected']))).toEqual({
+      messageTypeId: OCPP_CALL_ERROR,
+      kind: 'CALLERROR',
+      uniqueId,
+      errorCode: 'SecurityError',
+      displayName: 'SecurityError'
+    });
+  });
+
+  it('ignores malformed frames when summarizing for renderer display', () => {
+    expect(summarizeOcppFrame('{')).toBeUndefined();
   });
 });

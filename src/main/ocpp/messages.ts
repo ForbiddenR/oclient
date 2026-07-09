@@ -2,7 +2,8 @@ import type {
   BootNotificationCallError,
   BootNotificationCallResult,
   BootNotificationPayload,
-  BootNotificationResponse
+  BootNotificationResponse,
+  OcppFrameSummary
 } from '../../shared/types';
 
 export const OCPP_CALL = 2;
@@ -183,6 +184,43 @@ export function toBootNotificationResponse(frame: ParsedOcppFrame): BootNotifica
   }
 
   throw new OcppMessageError('Expected a BootNotification response frame, received an OCPP CALL frame.');
+}
+
+export function summarizeOcppFrame(raw: string): OcppFrameSummary | undefined {
+  try {
+    return summarizeParsedFrame(parseOcppFrame(raw));
+  } catch {
+    return undefined;
+  }
+}
+
+function summarizeParsedFrame(frame: ParsedOcppFrame): OcppFrameSummary {
+  if (frame.messageTypeId === OCPP_CALL) {
+    return {
+      messageTypeId: frame.messageTypeId,
+      kind: 'CALL',
+      uniqueId: frame.uniqueId,
+      action: frame.action,
+      displayName: frame.action
+    };
+  }
+
+  if (frame.messageTypeId === OCPP_CALL_RESULT) {
+    return {
+      messageTypeId: frame.messageTypeId,
+      kind: 'CALLRESULT',
+      uniqueId: frame.uniqueId,
+      displayName: 'CALLRESULT'
+    };
+  }
+
+  return {
+    messageTypeId: frame.messageTypeId,
+    kind: 'CALLERROR',
+    uniqueId: frame.uniqueId,
+    errorCode: frame.errorCode,
+    displayName: frame.errorCode || 'CALLERROR'
+  };
 }
 
 export function stringifyFrame(frame: unknown): string {

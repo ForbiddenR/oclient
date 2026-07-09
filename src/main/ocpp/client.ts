@@ -20,6 +20,7 @@ import {
   OcppMessageError,
   parseOcppFrame,
   stringifyFrame,
+  summarizeOcppFrame,
   toBootNotificationResponse
 } from './messages';
 
@@ -267,7 +268,7 @@ export class OcppClient {
         return;
       }
 
-      this.emitSessionEvent({ type: 'frame', at: now(), direction: 'out', raw });
+      this.emitSessionEvent({ type: 'frame', at: now(), direction: 'out', raw, summary: summarizeOcppFrame(raw) });
       this.log('info', `BootNotification sent with request ID ${uniqueId}.`);
     });
 
@@ -276,7 +277,7 @@ export class OcppClient {
 
   private handleMessage(data: RawData): void {
     const raw = rawDataToString(data);
-    this.emitSessionEvent({ type: 'frame', at: now(), direction: 'in', raw });
+    this.emitSessionEvent({ type: 'frame', at: now(), direction: 'in', raw, summary: summarizeOcppFrame(raw) });
 
     let frame;
     try {

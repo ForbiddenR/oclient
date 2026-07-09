@@ -69,6 +69,15 @@ export interface BootNotificationCallError {
 
 export type BootNotificationResponse = BootNotificationCallResult | BootNotificationCallError;
 
+export interface OcppFrameSummary {
+  messageTypeId: 2 | 3 | 4;
+  kind: 'CALL' | 'CALLRESULT' | 'CALLERROR';
+  uniqueId: string;
+  action?: string;
+  errorCode?: string;
+  displayName: string;
+}
+
 export type SessionEvent =
   | {
       type: 'status';
@@ -87,6 +96,7 @@ export type SessionEvent =
       at: string;
       direction: 'in' | 'out';
       raw: string;
+      summary?: OcppFrameSummary;
     }
   | {
       type: 'boot-result';
