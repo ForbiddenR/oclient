@@ -309,10 +309,10 @@ function buildAppMarkup(): string {
         </div>
 
         <nav class="rail-nav" aria-label="仪表盘分区">
-          <a class="active" href="#dashboard">仪表盘</a>
-          <a href="#messages">消息日志</a>
-          <a href="#boot">BootNotification</a>
-          <a href="#settings">连接设置</a>
+          <a class="active" href="#dashboard" title="仪表盘" aria-label="仪表盘"><span class="rail-icon" aria-hidden="true">⌂</span><span>仪表盘</span></a>
+          <a href="#messages" title="消息日志" aria-label="消息日志"><span class="rail-icon" aria-hidden="true">⇄</span><span>消息日志</span></a>
+          <a href="#boot" title="BootNotification" aria-label="BootNotification"><span class="rail-icon" aria-hidden="true">↯</span><span>BootNotification</span></a>
+          <a href="#settings" title="连接设置" aria-label="连接设置"><span class="rail-icon" aria-hidden="true">⚙</span><span>连接设置</span></a>
         </nav>
 
         <div class="rail-summary" aria-label="当前会话摘要">
