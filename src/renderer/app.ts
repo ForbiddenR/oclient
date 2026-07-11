@@ -502,23 +502,18 @@ export function createApp(root: HTMLElement): void {
 function buildAppMarkup(): string {
   return `
     <header class="app-titlebar">
-      <div class="app-titlebar-title">OCPP 客户端</div>
+      <div class="app-titlebar-brand">
+        <span class="app-titlebar-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/></svg>
+        </span>
+        <div class="app-titlebar-title">OCPP 客户端</div>
+      </div>
       <button id="themeToggleButton" class="theme-toggle" type="button">
         <span aria-hidden="true"></span>
       </button>
     </header>
     <section class="app-shell" aria-label="OCPP 客户端仪表盘">
       <aside class="rail" aria-label="应用导航">
-        <div class="rail-brand">
-          <span class="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/></svg>
-          </span>
-          <div>
-            <h1>OCPP 客户端</h1>
-            <p>OCPP 1.6J 测试台</p>
-          </div>
-        </div>
-
         <nav class="rail-nav" aria-label="仪表盘分区">
           <a class="active" href="#/dashboard" data-route-link="dashboard" title="仪表盘" aria-label="仪表盘"><span class="rail-icon" aria-hidden="true">⌂</span><span>仪表盘</span></a>
           <a href="#/messages" data-route-link="messages" title="消息日志" aria-label="消息日志"><span class="rail-icon" aria-hidden="true">⇄</span><span>消息日志</span></a>
