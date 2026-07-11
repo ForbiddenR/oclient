@@ -51,8 +51,10 @@ describe('OcppClient integration', () => {
     });
 
     const result = await client.connect({
-      protocol: 'ws',
-      address: `127.0.0.1:${address.port}/CP001`,
+      tls: false,
+      domain: '127.0.0.1',
+      port: address.port,
+      path: '/CP001',
       headers: [{ id: 'token', enabled: true, name: 'X-Station-Token', value: 'secret' }]
     });
 
@@ -125,8 +127,10 @@ describe('OcppClient integration', () => {
     });
 
     const result = await client.connect({
-      protocol: 'ws',
-      address: `127.0.0.1:${address.port}/CP001`,
+      tls: false,
+      domain: '127.0.0.1',
+      port: address.port,
+      path: '/CP001',
       headers: []
     });
 
@@ -161,8 +165,10 @@ describe('OcppClient integration', () => {
 
     const failingClient = new OcppClient();
     const failingResult = await failingClient.connect({
-      protocol: 'wss',
-      address: `127.0.0.1:${address.port}/CP001`,
+      tls: true,
+      domain: '127.0.0.1',
+      port: address.port,
+      path: '/CP001',
       headers: []
     });
     expect(failingResult.ok).toBe(false);
@@ -170,8 +176,10 @@ describe('OcppClient integration', () => {
 
     const trustedClient = new OcppClient();
     const trustedResult = await trustedClient.connect({
-      protocol: 'wss',
-      address: `127.0.0.1:${address.port}/CP001`,
+      tls: true,
+      domain: '127.0.0.1',
+      port: address.port,
+      path: '/CP001',
       caCertificatePath: resolve(certDir, 'ca.crt'),
       headers: []
     });
@@ -220,8 +228,10 @@ describe('OcppClient integration', () => {
 
     const client = new OcppClient();
     const result = await client.connect({
-      protocol: 'wss',
-      address: `127.0.0.1:${address.port}/CP001`,
+      tls: true,
+      domain: '127.0.0.1',
+      port: address.port,
+      path: '/CP001',
       headers: [],
       allowInsecureTls: true
     });

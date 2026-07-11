@@ -671,43 +671,94 @@ p {
 }
 
 /* Forms */
-.segmented {
+.tls-toggle {
+  position: relative;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  padding: 5px;
-  margin-bottom: 16px;
-  border: 1px solid var(--line);
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  cursor: pointer;
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
   background: var(--surface-soft);
 }
 
-.segmented label {
-  cursor: pointer;
-}
-
-.segmented input {
+.tls-toggle input {
   position: absolute;
   opacity: 0;
   pointer-events: none;
 }
 
-.segmented span {
-  display: block;
-  padding: 10px;
-  border-radius: 8px;
-  color: var(--muted);
-  text-align: center;
-  font-family: "SF Mono", "Cascadia Code", ui-monospace, monospace;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+.tls-toggle-copy {
+  display: grid;
+  gap: 3px;
 }
 
-.segmented input:checked + span {
+.tls-toggle-copy strong {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.tls-toggle-copy small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.tls-toggle-control {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--surface-sink);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  transition: background 140ms ease, box-shadow 140ms ease;
+}
+
+.tls-toggle-control::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  content: "";
+  border-radius: 50%;
   background: var(--surface);
-  color: var(--blue-deep);
-  box-shadow: inset 0 0 0 1.5px var(--blue);
+  box-shadow: var(--shadow-sm);
+  transition: transform 140ms ease;
+}
+
+.tls-toggle input:checked ~ .tls-toggle-control {
+  background: var(--blue);
+  box-shadow: inset 0 0 0 1px var(--blue-deep);
+}
+
+.tls-toggle input:checked ~ .tls-toggle-control::after {
+  transform: translateX(20px);
+}
+
+.tls-toggle input:focus-visible ~ .tls-toggle-control {
+  box-shadow: 0 0 0 3px var(--blue-soft), inset 0 0 0 1px var(--blue);
+}
+
+.endpoint-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(100px, 0.45fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.endpoint-fields .field {
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.endpoint-hint {
+  margin: 7px 0 16px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
 }
 
 .field {
@@ -1213,6 +1264,7 @@ p {
   .overview-grid,
   .metrics-grid,
   .field-grid,
+  .endpoint-fields,
   .rail-nav {
     grid-template-columns: 1fr;
   }

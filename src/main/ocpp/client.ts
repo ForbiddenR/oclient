@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import type { IncomingMessage } from 'node:http';
+import { isIP } from 'node:net';
 import { TLSSocket } from 'node:tls';
 import type { RawData } from 'ws';
 import WebSocket from 'ws';
@@ -94,8 +95,8 @@ export class OcppClient {
     try {
       subprotocol = normalizeSubprotocol(config.subprotocol);
       this.requestTimeoutMs = normalizeRequestTimeout(config.requestTimeoutMs);
-      url = normalizeConnectionUrl(config.protocol, config.address);
-      protocol = getProtocolFromUrl(url);
+      url = normalizeConnectionUrl(config.tls, config.domain, config.port, config.path);
+      protocol = config.tls ? 'wss' : 'ws';
       headers = normalizeCustomHeaders(config.headers ?? []);
       rejectUnauthorized = normalizeRejectUnauthorized(protocol, config.allowInsecureTls);
       tlsMode = getTlsMode(protocol, Boolean(config.caCertificatePath), rejectUnauthorized);
@@ -484,30 +485,77 @@ export class OcppClient {
   }
 }
 
-export function normalizeConnectionUrl(protocol: TransportProtocol, address: string): string {
-  const trimmed = address.trim();
+export function normalizeConnectionUrl(tls: boolean, domain: string, port?: number, path = ''): string {
+  const hostname = normalizeDomain(domain);
+  const normalizedPort = normalizePort(port);
+  const normalizedPath = normalizeEndpointPath(path);
+  const authority = isIP(hostname) === 6 ? '[' + hostname + ']' : hostname;
+  const portSuffix = normalizedPort === undefined ? '' : ':' + normalizedPort;
+  const protocol = tls ? 'wss' : 'ws';
 
-  if (!trimmed) {
-    throw new OcppClientError('Central system address is required.');
-  }
-
-  const hasScheme = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(trimmed);
-  const candidate = hasScheme ? trimmed : `${protocol}://${trimmed}`;
-  const url = new URL(candidate);
-
-  if (url.protocol !== 'ws:' && url.protocol !== 'wss:') {
-    throw new OcppClientError('Endpoint must use ws:// or wss://.');
-  }
-
-  if (!url.hostname) {
-    throw new OcppClientError('Endpoint must include a host.');
-  }
-
-  return url.toString();
+  return new URL(protocol + '://' + authority + portSuffix + normalizedPath).toString();
 }
 
-function getProtocolFromUrl(url: string): TransportProtocol {
-  return new URL(url).protocol === 'wss:' ? 'wss' : 'ws';
+function normalizeDomain(domain: string): string {
+  const trimmed = domain.trim();
+  const hostname = trimmed.startsWith('[') && trimmed.endsWith(']') ? trimmed.slice(1, -1) : trimmed;
+
+  if (!hostname) {
+    throw new OcppClientError('Central system domain is required.');
+  }
+
+  if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(hostname)) {
+    throw new OcppClientError('Domain must not include a URL scheme.');
+  }
+
+  if (/[\/\s?#@]/.test(hostname)) {
+    throw new OcppClientError('Domain must contain only a host name or IP address.');
+  }
+
+  if (hostname.includes(':') && isIP(hostname) !== 6) {
+    throw new OcppClientError('Domain must not include a port. Use the port field instead.');
+  }
+
+  try {
+    const authority = isIP(hostname) === 6 ? '[' + hostname + ']' : hostname;
+    if (!new URL('ws://' + authority).hostname) {
+      throw new Error('Missing host');
+    }
+  } catch {
+    throw new OcppClientError('Domain must be a valid host name or IP address.');
+  }
+
+  return hostname;
+}
+
+function normalizePort(port?: number): number | undefined {
+  if (port === undefined) {
+    return undefined;
+  }
+
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new OcppClientError('Port must be an integer between 1 and 65535.');
+  }
+
+  return port;
+}
+
+function normalizeEndpointPath(path: string): string {
+  const trimmed = path.trim();
+
+  if (!trimmed) {
+    return '/';
+  }
+
+  if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(trimmed)) {
+    throw new OcppClientError('Path must not include a URL scheme or domain.');
+  }
+
+  if (trimmed.includes('#')) {
+    throw new OcppClientError('Path must not include a URL fragment.');
+  }
+
+  return trimmed.startsWith('/') ? trimmed : '/' + trimmed;
 }
 
 export function normalizeCustomHeaders(entries: HeaderEntry[]): Record<string, string> {

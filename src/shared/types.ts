@@ -16,8 +16,10 @@ export interface HeaderEntry {
 }
 
 export interface ConnectConfig {
-  protocol: TransportProtocol;
-  address: string;
+  tls: boolean;
+  domain: string;
+  port?: number;
+  path?: string;
   caCertificatePath?: string;
   headers: HeaderEntry[];
   subprotocol?: string;

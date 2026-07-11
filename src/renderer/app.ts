@@ -6,8 +6,7 @@ import type {
   ConnectionState,
   HeaderEntry,
   OcppCommandResponse,
-  SessionEvent,
-  TransportProtocol
+  SessionEvent
 } from '../shared/types';
 
 interface HeaderDraft {
@@ -227,7 +226,7 @@ export function createApp(root: HTMLElement): void {
       elements.commandPayloadInput.value = JSON.stringify(commandPreset(target.value), null, 2);
     }
 
-    if (target instanceof HTMLInputElement && target.name === 'protocol') {
+    if (target instanceof HTMLInputElement && target.id === 'tlsInput') {
       state.allowInsecureTls = false;
       renderDashboard();
     }
@@ -250,7 +249,7 @@ export function createApp(root: HTMLElement): void {
       return;
     }
 
-    if (target instanceof HTMLInputElement && ['addressInput', 'subprotocolInput'].includes(target.id)) {
+    if (target instanceof HTMLInputElement && ['domainInput', 'portInput', 'pathInput', 'subprotocolInput'].includes(target.id)) {
       renderConnectionOverview(elements.overviewGrid, root, state);
       renderStatus(elements, state.connectionState);
     }
@@ -315,8 +314,10 @@ export function createApp(root: HTMLElement): void {
 
     try {
       const result = await window.oclient.connect({
-        protocol: getSelectedProtocol(root),
-        address: inputValue(root, '#addressInput'),
+        tls: isTlsEnabled(root),
+        domain: inputValue(root, '#domainInput'),
+        port: optionalPortValue(root),
+        path: inputValue(root, '#pathInput'),
         subprotocol: inputValue(root, '#subprotocolInput'),
         caCertificatePath: state.caCertificatePath || undefined,
         headers: collectHeaders(state.headers),
@@ -624,22 +625,30 @@ function buildAppMarkup(): string {
                 </div>
               </header>
               <div class="card-body">
-                <div class="segmented" role="radiogroup" aria-label="传输协议">
-                  <label>
-                    <input type="radio" name="protocol" value="ws" checked />
-                    <span>ws</span>
+                <label class="tls-toggle">
+                  <input id="tlsInput" name="tls" type="checkbox" />
+                  <span class="tls-toggle-copy">
+                    <strong>启用 TLS</strong>
+                    <small>加密与中央系统之间的 WebSocket 连接，并启用证书验证选项。</small>
+                  </span>
+                  <span class="tls-toggle-control" aria-hidden="true"></span>
+                </label>
+
+                <div class="endpoint-fields" role="group" aria-label="中央系统端点">
+                  <label class="field">
+                    <span>域名或 IP</span>
+                    <input id="domainInput" name="domain" type="text" value="127.0.0.1" placeholder="central.example.com" autocomplete="off" spellcheck="false" />
                   </label>
-                  <label>
-                    <input type="radio" name="protocol" value="wss" />
-                    <span>wss</span>
+                  <label class="field">
+                    <span>端口</span>
+                    <input id="portInput" name="port" type="number" value="9000" min="1" max="65535" inputmode="numeric" placeholder="9000" autocomplete="off" />
+                  </label>
+                  <label class="field">
+                    <span>路径</span>
+                    <input id="pathInput" name="path" type="text" value="/CP001" placeholder="/CP001" autocomplete="off" spellcheck="false" />
                   </label>
                 </div>
-
-                <label class="field">
-                  <span>端点</span>
-                  <input id="addressInput" name="address" type="text" value="127.0.0.1:9000/CP001" autocomplete="off" spellcheck="false" />
-                  <small>可使用完整 URL，也可省略协议并由所选传输方式自动补全。</small>
-                </label>
+                <p class="endpoint-hint">协议由 TLS 开关自动决定；端口留空时使用默认端口。</p>
 
                 <label class="field compact">
                   <span>子协议</span>
@@ -787,7 +796,7 @@ function renderTransport(
   selectedPath: string,
   allowInsecureTls: boolean
 ): void {
-  const isSecure = getSelectedProtocol(root) === 'wss';
+  const isSecure = isTlsEnabled(root);
   caSection.hidden = !isSecure;
   caPath.textContent = selectedPath || '未选择证书';
 
@@ -1175,9 +1184,13 @@ function deriveConnectionSummary(root: HTMLElement, state: AppState): {
   duration: string;
   interval: string;
 } {
-  const configuredAddress = inputValue(root, '#addressInput');
-  const configuredProtocol = getSelectedProtocol(root);
-  const configuredUrl = configuredAddress ? previewConnectionUrl(configuredProtocol, configuredAddress) : EMPTY_VALUE;
+  const configuredDomain = inputValue(root, '#domainInput');
+  const tlsEnabled = isTlsEnabled(root);
+  const configuredPort = optionalPortValue(root);
+  const configuredPath = inputValue(root, '#pathInput');
+  const configuredUrl = configuredDomain
+    ? previewConnectionUrl(tlsEnabled, configuredDomain, configuredPort, configuredPath)
+    : EMPTY_VALUE;
   const url = state.connectResult?.url ?? configuredUrl;
   const configuredSubprotocol = inputValue(root, '#subprotocolInput') || 'ocpp1.6';
   const details = state.connectResult?.details;
@@ -1191,14 +1204,14 @@ function deriveConnectionSummary(root: HTMLElement, state: AppState): {
   return {
     url,
     chargePointId: extractChargePointId(url),
-    transport: details ? `${details.transport.toUpperCase()}${details.transport === 'wss' ? ' (TLS)' : ''}` : configuredProtocol.toUpperCase(),
+    transport: details?.transport === 'wss' || (!details && tlsEnabled) ? 'WebSocket + TLS' : 'WebSocket',
     subprotocol: details
       ? `${details.requestedSubprotocol} → ${details.negotiatedSubprotocol}`
       : configuredSubprotocol,
     handshakeStatus: details ? `HTTP ${details.handshakeStatus} Switching Protocols` : EMPTY_VALUE,
     remoteEndpoint: details?.remoteEndpoint ?? EMPTY_VALUE,
     localEndpoint: details?.localEndpoint ?? EMPTY_VALUE,
-    tls: details ? formatTlsDetails(details.tlsMode, details.tlsProtocol, details.cipher) : previewTlsMode(configuredProtocol, state),
+    tls: details ? formatTlsDetails(details.tlsMode, details.tlsProtocol, details.cipher) : previewTlsMode(tlsEnabled, state),
     extensions: details?.extensions ?? '无',
     customHeaders: details?.customHeaderNames.length ? details.customHeaderNames.join(', ') : '无',
     responseHeaders: responseHeaders || EMPTY_VALUE,
@@ -1409,9 +1422,13 @@ function collectBootPayload(root: HTMLElement): BootNotificationPayload {
   };
 }
 
-function getSelectedProtocol(root: HTMLElement): TransportProtocol {
-  const selected = root.querySelector<HTMLInputElement>('input[name="protocol"]:checked');
-  return selected?.value === 'wss' ? 'wss' : 'ws';
+function isTlsEnabled(root: HTMLElement): boolean {
+  return mustQuery<HTMLInputElement>(root, '#tlsInput').checked;
+}
+
+function optionalPortValue(root: HTMLElement): number | undefined {
+  const value = inputValue(root, '#portInput');
+  return value ? Number(value) : undefined;
 }
 
 function inputValue(root: HTMLElement, selector: string): string {
@@ -1447,12 +1464,13 @@ function prettyJson(raw: string): string {
   }
 }
 
-function previewConnectionUrl(protocol: TransportProtocol, address: string): string {
-  if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(address)) {
-    return address;
-  }
+function previewConnectionUrl(tls: boolean, domain: string, port?: number, path = ''): string {
+  const normalizedDomain = domain.includes(':') && !domain.startsWith('[') ? '[' + domain + ']' : domain;
+  const portSuffix = port === undefined || !Number.isFinite(port) ? '' : ':' + port;
+  const trimmedPath = path.trim();
+  const normalizedPath = !trimmedPath ? '/' : trimmedPath.startsWith('/') ? trimmedPath : '/' + trimmedPath;
 
-  return `${protocol}://${address}`;
+  return (tls ? 'wss' : 'ws') + '://' + normalizedDomain + portSuffix + normalizedPath;
 }
 
 function extractChargePointId(url: string): string {
@@ -1479,8 +1497,8 @@ function formatOcppVersion(subprotocol?: string): string {
   return subprotocol?.trim() ?? '1.6J';
 }
 
-function previewTlsMode(protocol: TransportProtocol, state: Pick<AppState, 'allowInsecureTls' | 'caCertificatePath'>): string {
-  if (protocol === 'ws') {
+function previewTlsMode(tls: boolean, state: Pick<AppState, 'allowInsecureTls' | 'caCertificatePath'>): string {
+  if (!tls) {
     return '不适用';
   }
 

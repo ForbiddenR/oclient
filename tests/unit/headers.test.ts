@@ -7,18 +7,23 @@ import {
 } from '../../src/main/ocpp/client';
 
 describe('connection config normalization', () => {
-  it('applies the selected protocol when the address omits a scheme', () => {
-    expect(normalizeConnectionUrl('ws', '127.0.0.1:9000/CP001')).toBe('ws://127.0.0.1:9000/CP001');
-    expect(normalizeConnectionUrl('wss', 'central.example.com/CP001')).toBe('wss://central.example.com/CP001');
+  it('builds the WebSocket URL from TLS, domain, port, and path', () => {
+    expect(normalizeConnectionUrl(false, '127.0.0.1', 9000, 'CP001')).toBe('ws://127.0.0.1:9000/CP001');
+    expect(normalizeConnectionUrl(true, 'central.example.com', 8443, '/ocpp/CP001')).toBe(
+      'wss://central.example.com:8443/ocpp/CP001'
+    );
   });
 
-  it('preserves a full endpoint URL scheme even if the selected protocol differs', () => {
-    expect(normalizeConnectionUrl('wss', 'ws://central.example.com/CP001')).toBe('ws://central.example.com/CP001');
-    expect(normalizeConnectionUrl('ws', 'wss://central.example.com/CP001')).toBe('wss://central.example.com/CP001');
+  it('supports default ports, root paths, and IPv6 domains', () => {
+    expect(normalizeConnectionUrl(true, 'central.example.com')).toBe('wss://central.example.com/');
+    expect(normalizeConnectionUrl(false, '::1', 9000, '/CP001')).toBe('ws://[::1]:9000/CP001');
   });
 
-  it('rejects non-websocket endpoints', () => {
-    expect(() => normalizeConnectionUrl('ws', 'https://central.example.com')).toThrow(OcppClientError);
+  it('rejects endpoint parts that overlap or are invalid', () => {
+    expect(() => normalizeConnectionUrl(false, 'ws://central.example.com', 9000, '/CP001')).toThrow(OcppClientError);
+    expect(() => normalizeConnectionUrl(false, 'central.example.com:9000', 9000, '/CP001')).toThrow(OcppClientError);
+    expect(() => normalizeConnectionUrl(false, 'central.example.com', 70000, '/CP001')).toThrow(OcppClientError);
+    expect(() => normalizeConnectionUrl(false, 'central.example.com', 9000, '/CP001#debug')).toThrow(OcppClientError);
   });
 });
 
