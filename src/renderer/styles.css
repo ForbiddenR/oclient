@@ -825,6 +825,46 @@ p {
   max-width: 220px;
 }
 
+.command-action-section {
+  padding: 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+}
+
+.command-action-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.command-action-field {
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.command-action-field input {
+  font-family: "SF Mono", "Cascadia Code", ui-monospace, monospace;
+  font-weight: 700;
+}
+
+.command-send-button {
+  min-width: 150px;
+}
+
+.command-action-hint {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.command-payload-field {
+  margin-bottom: 0;
+}
+
 .field-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1303,6 +1343,14 @@ p {
   .certificate-card,
   .header-row {
     grid-template-columns: 1fr;
+  }
+
+  .command-action-row {
+    grid-template-columns: 1fr;
+  }
+
+  .command-send-button {
+    width: 100%;
   }
 }
 

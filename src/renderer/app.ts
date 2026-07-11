@@ -65,7 +65,7 @@ interface AppState {
 interface DashboardElements {
   routeTitle: HTMLElement;
   routeEyebrow: HTMLElement;
-  commandActionInput: HTMLSelectElement;
+  commandActionInput: HTMLInputElement;
   commandPayloadInput: HTMLTextAreaElement;
   sendCommandButton: HTMLButtonElement;
   commandResultCard: HTMLElement;
@@ -119,7 +119,7 @@ export function createApp(root: HTMLElement): void {
   const elements: DashboardElements = {
     routeTitle: mustQuery<HTMLElement>(root, '#routeTitle'),
     routeEyebrow: mustQuery<HTMLElement>(root, '#routeEyebrow'),
-    commandActionInput: mustQuery<HTMLSelectElement>(root, '#commandActionInput'),
+    commandActionInput: mustQuery<HTMLInputElement>(root, '#commandActionInput'),
     commandPayloadInput: mustQuery<HTMLTextAreaElement>(root, '#commandPayloadInput'),
     sendCommandButton: mustQuery<HTMLButtonElement>(root, '#sendCommandButton'),
     commandResultCard: mustQuery<HTMLElement>(root, '#commandResultCard'),
@@ -225,8 +225,11 @@ export function createApp(root: HTMLElement): void {
   root.addEventListener('change', (event) => {
     const target = event.target;
 
-    if (target instanceof HTMLSelectElement && target.id === 'commandActionInput') {
-      elements.commandPayloadInput.value = JSON.stringify(commandPreset(target.value), null, 2);
+    if (target instanceof HTMLInputElement && target.id === 'commandActionInput') {
+      const preset = commandPreset(target.value);
+      if (preset) {
+        elements.commandPayloadInput.value = JSON.stringify(preset, null, 2);
+      }
     }
 
     if (target instanceof HTMLInputElement && target.id === 'tlsInput') {
@@ -533,34 +536,31 @@ function buildAppMarkup(): string {
                 </div>
               </header>
               <div class="card-body">
-                <label class="field">
-                  <span>Action</span>
-                  <select id="commandActionInput" name="action">
-                    <optgroup label="基础">
-                      <option value="Heartbeat">Heartbeat</option>
-                      <option value="StatusNotification">StatusNotification</option>
-                      <option value="Authorize">Authorize</option>
-                    </optgroup>
-                    <optgroup label="事务">
-                      <option value="StartTransaction">StartTransaction</option>
-                      <option value="StopTransaction">StopTransaction</option>
-                      <option value="MeterValues">MeterValues</option>
-                    </optgroup>
-                    <optgroup label="运维">
-                      <option value="DataTransfer">DataTransfer</option>
-                      <option value="DiagnosticsStatusNotification">DiagnosticsStatusNotification</option>
-                      <option value="FirmwareStatusNotification">FirmwareStatusNotification</option>
-                    </optgroup>
-                  </select>
-                  <small>从客户端支持的 OCPP 1.6 Action 中选择，Payload 会自动载入对应预设。</small>
-                </label>
-                <label class="field">
+                <div class="command-action-section">
+                  <div class="command-action-row">
+                    <label class="field command-action-field">
+                      <span>Action</span>
+                      <input id="commandActionInput" name="action" type="text" list="commandActionPresets" value="Heartbeat" autocomplete="off" spellcheck="false" placeholder="例如 Heartbeat" />
+                    </label>
+                    <button id="sendCommandButton" class="primary command-send-button" type="button" disabled>发送 OCPP 命令</button>
+                  </div>
+                  <p class="command-action-hint">可直接输入任意 OCPP Action；选择内置建议时会自动载入对应的 Payload 预设。</p>
+                  <datalist id="commandActionPresets">
+                    <option value="Heartbeat"></option>
+                    <option value="StatusNotification"></option>
+                    <option value="Authorize"></option>
+                    <option value="StartTransaction"></option>
+                    <option value="StopTransaction"></option>
+                    <option value="MeterValues"></option>
+                    <option value="DataTransfer"></option>
+                    <option value="DiagnosticsStatusNotification"></option>
+                    <option value="FirmwareStatusNotification"></option>
+                  </datalist>
+                </div>
+                <label class="field command-payload-field">
                   <span>JSON Payload</span>
                   <textarea id="commandPayloadInput" rows="12" spellcheck="false">{}</textarea>
                 </label>
-                <div class="button-row">
-                  <button id="sendCommandButton" class="primary" type="button" disabled>发送 OCPP 命令</button>
-                </div>
               </div>
             </section>
 
@@ -1007,8 +1007,8 @@ function renderLog(container: HTMLElement, events: SessionEvent[]): void {
   );
 }
 
-function commandPreset(action: string): Record<string, unknown> {
-  return OCPP_COMMAND_PRESETS[action.trim()]?.() ?? {};
+function commandPreset(action: string): Record<string, unknown> | undefined {
+  return OCPP_COMMAND_PRESETS[action.trim()]?.();
 }
 
 function parseCommandPayload(raw: string): Record<string, unknown> {
