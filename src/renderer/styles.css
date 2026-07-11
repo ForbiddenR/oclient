@@ -892,6 +892,31 @@ p {
   font-weight: 700;
 }
 
+.command-preset-field {
+  position: relative;
+}
+
+.command-preset-field select {
+  appearance: none;
+  padding-right: 36px;
+  padding-left: 12px;
+  text-align: left;
+  text-align-last: left;
+}
+
+.command-preset-field::after {
+  position: absolute;
+  right: 14px;
+  bottom: 17px;
+  width: 7px;
+  height: 7px;
+  pointer-events: none;
+  content: "";
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+}
+
 .command-send-button {
   min-width: 150px;
 }

@@ -601,7 +601,7 @@ function buildAppMarkup(): string {
                     <label class="field command-preset-field">
                       <span>内置预设</span>
                       <select id="commandPresetSelect" name="actionPreset">
-                        <option value="">选择预设</option>
+                        <option value="" hidden></option>
                         <option value="Heartbeat" selected>Heartbeat</option>
                         <option value="StatusNotification">StatusNotification</option>
                         <option value="Authorize">Authorize</option>
