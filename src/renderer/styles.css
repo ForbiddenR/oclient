@@ -609,7 +609,28 @@ p {
 
 .dashboard[data-current-route="boot"] .side-stack,
 .dashboard[data-current-route="settings"] .side-stack {
-  max-width: 960px;
+  max-width: none;
+}
+
+@media (min-width: 1560px) {
+  .dashboard[data-current-route="boot"] .side-stack,
+  .dashboard[data-current-route="settings"] .side-stack {
+    display: grid;
+    gap: 20px;
+  }
+
+  .dashboard[data-current-route="boot"] .side-stack {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard[data-current-route="settings"] .side-stack {
+    grid-template-columns: minmax(0, 1.3fr) minmax(440px, 0.7fr);
+  }
+
+  .dashboard[data-current-route="boot"] .side-stack > .card,
+  .dashboard[data-current-route="settings"] .side-stack > .card {
+    min-width: 0;
+  }
 }
 
 /* Buttons */
