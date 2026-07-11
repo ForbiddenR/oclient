@@ -66,6 +66,7 @@ interface DashboardElements {
   routeTitle: HTMLElement;
   routeEyebrow: HTMLElement;
   commandActionInput: HTMLInputElement;
+  commandPresetSelect: HTMLSelectElement;
   commandPayloadInput: HTMLTextAreaElement;
   sendCommandButton: HTMLButtonElement;
   commandResultCard: HTMLElement;
@@ -123,6 +124,7 @@ export function createApp(root: HTMLElement): void {
     routeTitle: mustQuery<HTMLElement>(root, '#routeTitle'),
     routeEyebrow: mustQuery<HTMLElement>(root, '#routeEyebrow'),
     commandActionInput: mustQuery<HTMLInputElement>(root, '#commandActionInput'),
+    commandPresetSelect: mustQuery<HTMLSelectElement>(root, '#commandPresetSelect'),
     commandPayloadInput: mustQuery<HTMLTextAreaElement>(root, '#commandPayloadInput'),
     sendCommandButton: mustQuery<HTMLButtonElement>(root, '#sendCommandButton'),
     commandResultCard: mustQuery<HTMLElement>(root, '#commandResultCard'),
@@ -244,6 +246,15 @@ export function createApp(root: HTMLElement): void {
     const target = event.target;
 
     if (target instanceof HTMLInputElement && target.id === 'commandActionInput') {
+      elements.commandPresetSelect.value = commandPresetName(target.value);
+      const preset = commandPreset(target.value);
+      if (preset) {
+        elements.commandPayloadInput.value = JSON.stringify(preset, null, 2);
+      }
+    }
+
+    if (target instanceof HTMLSelectElement && target.id === 'commandPresetSelect' && target.value) {
+      elements.commandActionInput.value = target.value;
       const preset = commandPreset(target.value);
       if (preset) {
         elements.commandPayloadInput.value = JSON.stringify(preset, null, 2);
@@ -267,6 +278,11 @@ export function createApp(root: HTMLElement): void {
 
   root.addEventListener('input', (event) => {
     const target = event.target;
+
+    if (target instanceof HTMLInputElement && target.id === 'commandActionInput') {
+      elements.commandPresetSelect.value = commandPresetName(target.value);
+      return;
+    }
 
     if (target instanceof HTMLInputElement && target.dataset.headerField) {
       syncHeaderDraftFromInput(target, state.headers);
@@ -580,22 +596,26 @@ function buildAppMarkup(): string {
                   <div class="command-action-row">
                     <label class="field command-action-field">
                       <span>Action</span>
-                      <input id="commandActionInput" name="action" type="text" list="commandActionPresets" value="Heartbeat" autocomplete="off" spellcheck="false" placeholder="例如 Heartbeat" />
+                      <input id="commandActionInput" name="action" type="text" value="Heartbeat" autocomplete="off" spellcheck="false" placeholder="例如 Heartbeat" />
+                    </label>
+                    <label class="field command-preset-field">
+                      <span>内置预设</span>
+                      <select id="commandPresetSelect" name="actionPreset">
+                        <option value="">选择预设</option>
+                        <option value="Heartbeat" selected>Heartbeat</option>
+                        <option value="StatusNotification">StatusNotification</option>
+                        <option value="Authorize">Authorize</option>
+                        <option value="StartTransaction">StartTransaction</option>
+                        <option value="StopTransaction">StopTransaction</option>
+                        <option value="MeterValues">MeterValues</option>
+                        <option value="DataTransfer">DataTransfer</option>
+                        <option value="DiagnosticsStatusNotification">DiagnosticsStatusNotification</option>
+                        <option value="FirmwareStatusNotification">FirmwareStatusNotification</option>
+                      </select>
                     </label>
                     <button id="sendCommandButton" class="primary command-send-button" type="button" disabled>发送 OCPP 命令</button>
                   </div>
-                  <p class="command-action-hint">可直接输入任意 OCPP Action；选择内置建议时会自动载入对应的 Payload 预设。</p>
-                  <datalist id="commandActionPresets">
-                    <option value="Heartbeat"></option>
-                    <option value="StatusNotification"></option>
-                    <option value="Authorize"></option>
-                    <option value="StartTransaction"></option>
-                    <option value="StopTransaction"></option>
-                    <option value="MeterValues"></option>
-                    <option value="DataTransfer"></option>
-                    <option value="DiagnosticsStatusNotification"></option>
-                    <option value="FirmwareStatusNotification"></option>
-                  </datalist>
+                  <p class="command-action-hint">Action 可自由编辑；内置预设始终可选，并会自动载入对应的 Payload。</p>
                 </div>
                 <label class="field command-payload-field">
                   <span>JSON Payload</span>
@@ -979,10 +999,10 @@ function renderSessionMetrics(container: HTMLElement, state: AppState): void {
   const metrics = deriveSessionMetrics(state);
   container.replaceChildren(
     createMetricCard('总帧数', String(metrics.totalFrames), 'OCPP-J 帧', 'neutral'),
+    createMetricCard('Ping 状态', metrics.pingStatus, metrics.pingDetail, metrics.pingVariant),
     createMetricCard('发送', String(metrics.outboundFrames), `${metrics.outboundPercent}% 帧占比`, 'outbound'),
     createMetricCard('接收', String(metrics.inboundFrames), `${metrics.inboundPercent}% 帧占比`, 'inbound'),
     createMetricCard('Boot 状态', metrics.bootStatus, metrics.bootDetail, 'boot'),
-    createMetricCard('Ping 状态', metrics.pingStatus, metrics.pingDetail, metrics.pingVariant),
     createMetricCard('错误', String(metrics.errors), metrics.errors === 1 ? '需要处理' : '日志事件', metrics.errors > 0 ? 'error' : 'neutral')
   );
 }
@@ -1052,7 +1072,13 @@ function renderLog(container: HTMLElement, events: SessionEvent[]): void {
 }
 
 function commandPreset(action: string): Record<string, unknown> | undefined {
-  return OCPP_COMMAND_PRESETS[action.trim()]?.();
+  const name = commandPresetName(action);
+  return name ? OCPP_COMMAND_PRESETS[name]?.() : undefined;
+}
+
+function commandPresetName(action: string): string {
+  const normalized = action.trim();
+  return Object.prototype.hasOwnProperty.call(OCPP_COMMAND_PRESETS, normalized) ? normalized : '';
 }
 
 function parseCommandPayload(raw: string): Record<string, unknown> {
