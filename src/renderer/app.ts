@@ -665,16 +665,18 @@ function buildAppMarkup(): string {
                 </div>
                 <p class="endpoint-hint">协议由 TLS 开关自动决定；端口留空时使用默认端口。</p>
 
-                <div class="field-grid">
-                  <label class="field">
-                    <span>子协议</span>
-                    <input id="subprotocolInput" name="subprotocol" type="text" value="ocpp1.6" autocomplete="off" spellcheck="false" />
-                  </label>
-                  <label class="field">
-                    <span>Ping 间隔（秒）</span>
-                    <input id="pingIntervalInput" name="pingInterval" type="number" value="30" min="5" max="300" step="1" inputmode="numeric" autocomplete="off" />
-                    <small>连接后立即检测，随后按此间隔发送 WebSocket Ping。</small>
-                  </label>
+                <div class="socket-options">
+                  <div class="socket-options-grid">
+                    <label class="field">
+                      <span>WebSocket 子协议</span>
+                      <input id="subprotocolInput" name="subprotocol" type="text" value="ocpp1.6" autocomplete="off" spellcheck="false" />
+                    </label>
+                    <label class="field">
+                      <span>Ping 间隔（秒）</span>
+                      <input id="pingIntervalInput" name="pingInterval" type="number" value="30" min="5" max="300" step="1" inputmode="numeric" autocomplete="off" />
+                    </label>
+                  </div>
+                  <p class="socket-options-hint">子协议用于 WebSocket 握手；连接后会立即检测，并按设定间隔发送 Ping。</p>
                 </div>
 
                 <div id="caSection" class="certificate-card" hidden>
