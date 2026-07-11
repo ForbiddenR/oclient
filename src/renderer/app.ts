@@ -156,7 +156,7 @@ export function createApp(root: HTMLElement): void {
 
     elements.routeTitle.textContent = metadata.title;
     elements.routeEyebrow.textContent = metadata.eyebrow;
-    document.title = metadata.title + ' · OCPP 客户端';
+    document.title = 'OCPP 客户端';
     pageScroller.dataset.currentRoute = route;
 
     root.querySelectorAll<HTMLElement>('[data-route-section]').forEach((section) => {
@@ -485,6 +485,9 @@ export function createApp(root: HTMLElement): void {
 
 function buildAppMarkup(): string {
   return `
+    <header class="app-titlebar">
+      <div class="app-titlebar-title">OCPP 客户端</div>
+    </header>
     <section class="app-shell" aria-label="OCPP 客户端仪表盘">
       <aside class="rail" aria-label="应用导航">
         <div class="rail-brand">

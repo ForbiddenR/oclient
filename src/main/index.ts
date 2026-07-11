@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, Menu, shell } from 'electron';
 import { join } from 'node:path';
 import { registerIpc } from './ipc';
 
@@ -12,8 +12,17 @@ function createMainWindow(): BrowserWindow {
     height: 860,
     minWidth: 1040,
     minHeight: 720,
-    title: 'OCPP Bench',
+    title: 'OCPP 客户端',
     backgroundColor: '#13202B',
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
+    titleBarOverlay:
+      process.platform === 'darwin'
+        ? false
+        : {
+            color: '#f8fafc',
+            symbolColor: '#475569',
+            height: 40
+          },
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -22,6 +31,10 @@ function createMainWindow(): BrowserWindow {
       webSecurity: true
     }
   });
+
+  if (process.platform !== 'darwin') {
+    window.removeMenu();
+  }
 
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://')) {
@@ -50,6 +63,7 @@ function createMainWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(null);
   mainWindow = createMainWindow();
 
   app.on('activate', () => {
