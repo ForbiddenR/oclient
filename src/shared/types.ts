@@ -24,6 +24,7 @@ export interface ConnectConfig {
   headers: HeaderEntry[];
   subprotocol?: string;
   requestTimeoutMs?: number;
+  pingIntervalSeconds?: number;
   allowInsecureTls?: boolean;
 }
 
@@ -71,6 +72,7 @@ export interface WebSocketConnectionDetails {
   cipher?: string;
   customHeaderNames: string[];
   responseHeaders: Record<string, string>;
+  pingIntervalSeconds: number;
 }
 
 export interface PickCertificateResult {
@@ -141,6 +143,8 @@ export interface OcppFrameSummary {
   displayName: string;
 }
 
+export type WebSocketPingStatus = 'sent' | 'success' | 'timeout' | 'error';
+
 export type SessionEvent =
   | {
       type: 'status';
@@ -165,6 +169,14 @@ export type SessionEvent =
       type: 'boot-result';
       at: string;
       result: BootNotificationResponse;
+    }
+  | {
+      type: 'ping';
+      at: string;
+      status: WebSocketPingStatus;
+      intervalSeconds: number;
+      latencyMs?: number;
+      message: string;
     }
   | {
       type: 'connection-failure';

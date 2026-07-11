@@ -35,6 +35,9 @@ import {
 const DEFAULT_SUBPROTOCOL = 'ocpp1.6';
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const DEFAULT_CONNECT_TIMEOUT_MS = 15_000;
+const DEFAULT_PING_INTERVAL_SECONDS = 30;
+const MIN_PING_INTERVAL_SECONDS = 5;
+const MAX_PING_INTERVAL_SECONDS = 300;
 const MAX_UPGRADE_RESPONSE_BODY_LENGTH = 8_192;
 const MAX_WEBSOCKET_PAYLOAD_BYTES = 1_048_576;
 
@@ -78,6 +81,8 @@ export class OcppClientError extends Error {
 export class OcppClient {
   private socket?: WebSocket;
   private requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS;
+  private pingTimer?: NodeJS.Timeout;
+  private pendingPing?: { sentAt: number; intervalSeconds: number };
   private readonly pendingRequests = new Map<string, PendingRequest>();
   private readonly pendingCommands = new Map<string, PendingCommand>();
 
@@ -91,10 +96,12 @@ export class OcppClient {
     let subprotocol: string;
     let rejectUnauthorized: boolean;
     let tlsMode: WebSocketConnectionDetails['tlsMode'];
+    let pingIntervalSeconds: number;
 
     try {
       subprotocol = normalizeSubprotocol(config.subprotocol);
       this.requestTimeoutMs = normalizeRequestTimeout(config.requestTimeoutMs);
+      pingIntervalSeconds = normalizePingIntervalSeconds(config.pingIntervalSeconds);
       url = normalizeConnectionUrl(config.tls, config.domain, config.port, config.path);
       protocol = config.tls ? 'wss' : 'ws';
       headers = normalizeCustomHeaders(config.headers ?? []);
@@ -199,14 +206,17 @@ export class OcppClient {
           socket,
           response: upgradeResponse,
           tlsMode,
-          customHeaderNames: Object.keys(headers)
+          customHeaderNames: Object.keys(headers),
+          pingIntervalSeconds
         });
         this.setStatus('connected', `Connected to ${url}`);
         this.log('success', `Socket open with subprotocol ${socket.protocol}.`);
+        this.startPing(socket, pingIntervalSeconds);
         settle({ ok: true, url, protocol, subprotocol: socket.protocol, details });
       });
 
       socket.on('message', (data) => this.handleMessage(data));
+      socket.on('pong', () => this.handlePong(socket));
 
       socket.on('unexpected-response', (request, response) => {
         failedBeforeOpen = true;
@@ -224,6 +234,7 @@ export class OcppClient {
         const reasonText = reason.length > 0 ? ` ${reason.toString('utf8')}` : '';
         if (this.socket === socket) {
           this.rejectAllPending(new OcppClientError(`Socket closed: ${code}${reasonText}`));
+          this.stopPing();
           this.socket = undefined;
         }
 
@@ -254,6 +265,7 @@ export class OcppClient {
   }
 
   async disconnect(emitWhenIdle = true): Promise<void> {
+    this.stopPing();
     const socket = this.socket;
 
     if (!socket) {
@@ -455,6 +467,97 @@ export class OcppClient {
     pending.resolve(response);
   }
 
+  private startPing(socket: WebSocket, intervalSeconds: number): void {
+    this.stopPing();
+
+    const send = () => this.sendPing(socket, intervalSeconds);
+    send();
+    this.pingTimer = setInterval(send, intervalSeconds * 1_000);
+    this.pingTimer.unref();
+  }
+
+  private sendPing(socket: WebSocket, intervalSeconds: number): void {
+    if (this.socket !== socket || socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    if (this.pendingPing) {
+      this.emitSessionEvent({
+        type: 'ping',
+        at: now(),
+        status: 'timeout',
+        intervalSeconds: this.pendingPing.intervalSeconds,
+        message: 'No Pong was received before the next Ping interval.'
+      });
+      this.pendingPing = undefined;
+      return;
+    }
+
+    const sentAt = Date.now();
+    this.pendingPing = { sentAt, intervalSeconds };
+    this.emitSessionEvent({
+      type: 'ping',
+      at: new Date(sentAt).toISOString(),
+      status: 'sent',
+      intervalSeconds,
+      message: 'Ping sent; waiting for Pong.'
+    });
+
+    try {
+      socket.ping(undefined, undefined, (error) => {
+        if (!error || this.pendingPing?.sentAt !== sentAt) {
+          return;
+        }
+
+        this.pendingPing = undefined;
+        this.emitSessionEvent({
+          type: 'ping',
+          at: now(),
+          status: 'error',
+          intervalSeconds,
+          message: error.message
+        });
+      });
+    } catch (error) {
+      if (this.pendingPing?.sentAt === sentAt) {
+        this.pendingPing = undefined;
+      }
+      this.emitSessionEvent({
+        type: 'ping',
+        at: now(),
+        status: 'error',
+        intervalSeconds,
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  private handlePong(socket: WebSocket): void {
+    if (this.socket !== socket || !this.pendingPing) {
+      return;
+    }
+
+    const pending = this.pendingPing;
+    this.pendingPing = undefined;
+    const latencyMs = Math.max(0, Date.now() - pending.sentAt);
+    this.emitSessionEvent({
+      type: 'ping',
+      at: now(),
+      status: 'success',
+      intervalSeconds: pending.intervalSeconds,
+      latencyMs,
+      message: 'Pong received in ' + latencyMs + ' ms.'
+    });
+  }
+
+  private stopPing(): void {
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = undefined;
+    }
+    this.pendingPing = undefined;
+  }
+
   private rejectAllPending(error: Error): void {
     for (const [uniqueId, pending] of this.pendingRequests) {
       clearTimeout(pending.timer);
@@ -620,6 +723,28 @@ function normalizeRequestTimeout(timeoutMs?: number): number {
   return Math.round(timeoutMs);
 }
 
+export function normalizePingIntervalSeconds(intervalSeconds?: number): number {
+  if (intervalSeconds === undefined) {
+    return DEFAULT_PING_INTERVAL_SECONDS;
+  }
+
+  if (
+    !Number.isInteger(intervalSeconds) ||
+    intervalSeconds < MIN_PING_INTERVAL_SECONDS ||
+    intervalSeconds > MAX_PING_INTERVAL_SECONDS
+  ) {
+    throw new OcppClientError(
+      'Ping interval must be an integer between ' +
+        MIN_PING_INTERVAL_SECONDS +
+        ' and ' +
+        MAX_PING_INTERVAL_SECONDS +
+        ' seconds.'
+    );
+  }
+
+  return intervalSeconds;
+}
+
 function normalizeRejectUnauthorized(protocol: TransportProtocol, allowInsecureTls?: boolean): boolean {
   if (!allowInsecureTls) {
     return true;
@@ -656,6 +781,7 @@ function createConnectionDetails(input: {
   response?: IncomingMessage;
   tlsMode: WebSocketConnectionDetails['tlsMode'];
   customHeaderNames: string[];
+  pingIntervalSeconds: number;
 }): WebSocketConnectionDetails {
   const networkSocket = input.response?.socket;
   const tlsSocket = networkSocket instanceof TLSSocket ? networkSocket : undefined;
@@ -673,7 +799,8 @@ function createConnectionDetails(input: {
     tlsProtocol: tlsSocket?.getProtocol() ?? undefined,
     cipher: tlsSocket?.getCipher().name,
     customHeaderNames: input.customHeaderNames,
-    responseHeaders: normalizeResponseHeaders(input.response)
+    responseHeaders: normalizeResponseHeaders(input.response),
+    pingIntervalSeconds: input.pingIntervalSeconds
   };
 }
 

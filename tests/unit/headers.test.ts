@@ -3,6 +3,7 @@ import {
   describeWebSocketError,
   normalizeConnectionUrl,
   normalizeCustomHeaders,
+  normalizePingIntervalSeconds,
   OcppClientError
 } from '../../src/main/ocpp/client';
 
@@ -24,6 +25,19 @@ describe('connection config normalization', () => {
     expect(() => normalizeConnectionUrl(false, 'central.example.com:9000', 9000, '/CP001')).toThrow(OcppClientError);
     expect(() => normalizeConnectionUrl(false, 'central.example.com', 70000, '/CP001')).toThrow(OcppClientError);
     expect(() => normalizeConnectionUrl(false, 'central.example.com', 9000, '/CP001#debug')).toThrow(OcppClientError);
+  });
+});
+
+describe('ping interval normalization', () => {
+  it('uses a safe default and accepts configured intervals', () => {
+    expect(normalizePingIntervalSeconds()).toBe(30);
+    expect(normalizePingIntervalSeconds(15)).toBe(15);
+  });
+
+  it('rejects intervals outside 5 to 300 seconds or fractional values', () => {
+    expect(() => normalizePingIntervalSeconds(4)).toThrow(OcppClientError);
+    expect(() => normalizePingIntervalSeconds(301)).toThrow(OcppClientError);
+    expect(() => normalizePingIntervalSeconds(10.5)).toThrow(OcppClientError);
   });
 });
 

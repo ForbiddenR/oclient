@@ -44,9 +44,13 @@ describe('OcppClient integration', () => {
 
     const address = server.address() as AddressInfo;
     const events: string[] = [];
+    const pingStatuses: string[] = [];
     const client = new OcppClient((event) => {
       if (event.type === 'frame') {
         events.push(event.raw);
+      }
+      if (event.type === 'ping') {
+        pingStatuses.push(event.status);
       }
     });
 
@@ -55,6 +59,7 @@ describe('OcppClient integration', () => {
       domain: '127.0.0.1',
       port: address.port,
       path: '/CP001',
+      pingIntervalSeconds: 15,
       headers: [{ id: 'token', enabled: true, name: 'X-Station-Token', value: 'secret' }]
     });
 
@@ -65,7 +70,8 @@ describe('OcppClient integration', () => {
       negotiatedSubprotocol: 'ocpp1.6',
       handshakeStatus: 101,
       tlsMode: 'not-applicable',
-      customHeaderNames: ['X-Station-Token']
+      customHeaderNames: ['X-Station-Token'],
+      pingIntervalSeconds: 15
     });
     expect(result.details?.remoteEndpoint).toContain(`:${address.port}`);
     expect(result.details?.responseHeaders.upgrade).toBe('websocket');
@@ -90,6 +96,7 @@ describe('OcppClient integration', () => {
     expect(requestHeaders?.['x-station-token']).toBe('secret');
     expect(events.some((raw) => raw.includes('BootNotification'))).toBe(true);
     expect(events.some((raw) => raw.includes('Heartbeat'))).toBe(true);
+    expect(pingStatuses).toContain('success');
 
     await client.disconnect();
   });

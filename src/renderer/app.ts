@@ -19,6 +19,7 @@ interface HeaderDraft {
 type BootResultEvent = Extract<SessionEvent, { type: 'boot-result' }>;
 type LogLevel = Extract<SessionEvent, { type: 'log' }>['level'];
 type ConnectionFailureEvent = Extract<SessionEvent, { type: 'connection-failure' }>;
+type PingEvent = Extract<SessionEvent, { type: 'ping' }>;
 
 type AppRoute = 'dashboard' | 'messages' | 'boot' | 'settings';
 
@@ -58,6 +59,7 @@ interface AppState {
   connectionFailure?: ConnectionFailureEvent;
   connectedAt?: string;
   disconnectedAt?: string;
+  lastPing?: PingEvent;
 }
 
 interface DashboardElements {
@@ -107,7 +109,8 @@ export function createApp(root: HTMLElement): void {
     commandError: undefined,
     connectionFailure: undefined,
     connectedAt: undefined,
-    disconnectedAt: undefined
+    disconnectedAt: undefined,
+    lastPing: undefined
   };
   let durationTimer: number | undefined;
 
@@ -249,7 +252,7 @@ export function createApp(root: HTMLElement): void {
       return;
     }
 
-    if (target instanceof HTMLInputElement && ['domainInput', 'portInput', 'pathInput', 'subprotocolInput'].includes(target.id)) {
+    if (target instanceof HTMLInputElement && ['domainInput', 'portInput', 'pathInput', 'subprotocolInput', 'pingIntervalInput'].includes(target.id)) {
       renderConnectionOverview(elements.overviewGrid, root, state);
       renderStatus(elements, state.connectionState);
     }
@@ -309,6 +312,7 @@ export function createApp(root: HTMLElement): void {
     state.connectionFailure = undefined;
     state.connectedAt = undefined;
     state.disconnectedAt = undefined;
+    state.lastPing = undefined;
     resetResult(elements.resultCard, state);
     stopDurationTimer();
 
@@ -318,6 +322,7 @@ export function createApp(root: HTMLElement): void {
         domain: inputValue(root, '#domainInput'),
         port: optionalPortValue(root),
         path: inputValue(root, '#pathInput'),
+        pingIntervalSeconds: numberInputValue(root, '#pingIntervalInput'),
         subprotocol: inputValue(root, '#subprotocolInput'),
         caCertificatePath: state.caCertificatePath || undefined,
         headers: collectHeaders(state.headers),
@@ -405,7 +410,11 @@ export function createApp(root: HTMLElement): void {
   });
 
   window.oclient.onSessionEvent((event) => {
-    state.events = [...state.events, event].slice(-MAX_EVENTS);
+    if (event.type === 'ping') {
+      state.lastPing = event;
+    } else {
+      state.events = [...state.events, event].slice(-MAX_EVENTS);
+    }
 
     if (event.type === 'status') {
       state.connectionState = event.status;
@@ -414,6 +423,7 @@ export function createApp(root: HTMLElement): void {
         state.connectionFailure = undefined;
         state.connectedAt = state.connectedAt ?? event.at;
         state.disconnectedAt = undefined;
+        state.lastPing = undefined;
         startDurationTimer();
       }
 
@@ -655,10 +665,17 @@ function buildAppMarkup(): string {
                 </div>
                 <p class="endpoint-hint">协议由 TLS 开关自动决定；端口留空时使用默认端口。</p>
 
-                <label class="field compact">
-                  <span>子协议</span>
-                  <input id="subprotocolInput" name="subprotocol" type="text" value="ocpp1.6" autocomplete="off" spellcheck="false" />
-                </label>
+                <div class="field-grid">
+                  <label class="field">
+                    <span>子协议</span>
+                    <input id="subprotocolInput" name="subprotocol" type="text" value="ocpp1.6" autocomplete="off" spellcheck="false" />
+                  </label>
+                  <label class="field">
+                    <span>Ping 间隔（秒）</span>
+                    <input id="pingIntervalInput" name="pingInterval" type="number" value="30" min="5" max="300" step="1" inputmode="numeric" autocomplete="off" />
+                    <small>连接后立即检测，随后按此间隔发送 WebSocket Ping。</small>
+                  </label>
+                </div>
 
                 <div id="caSection" class="certificate-card" hidden>
                   <div>
@@ -893,7 +910,8 @@ function renderConnectionOverview(container: HTMLElement, root: HTMLElement, sta
     createDefinitionTile('响应头', summary.responseHeaders),
     createDefinitionTile('连接时间', summary.connectedAt),
     createDefinitionTile('连接时长', summary.duration),
-    createDefinitionTile('心跳间隔', summary.interval)
+    createDefinitionTile('Ping 间隔', summary.pingInterval),
+    createDefinitionTile('OCPP 心跳间隔', summary.interval)
   );
 }
 
@@ -922,6 +940,7 @@ function renderSessionMetrics(container: HTMLElement, state: AppState): void {
     createMetricCard('发送', String(metrics.outboundFrames), `${metrics.outboundPercent}% 帧占比`, 'outbound'),
     createMetricCard('接收', String(metrics.inboundFrames), `${metrics.inboundPercent}% 帧占比`, 'inbound'),
     createMetricCard('Boot 状态', metrics.bootStatus, metrics.bootDetail, 'boot'),
+    createMetricCard('Ping 状态', metrics.pingStatus, metrics.pingDetail, metrics.pingVariant),
     createMetricCard('错误', String(metrics.errors), metrics.errors === 1 ? '需要处理' : '日志事件', metrics.errors > 0 ? 'error' : 'neutral')
   );
 }
@@ -1187,12 +1206,14 @@ function deriveConnectionSummary(root: HTMLElement, state: AppState): {
   responseHeaders: string;
   connectedAt: string;
   duration: string;
+  pingInterval: string;
   interval: string;
 } {
   const configuredDomain = inputValue(root, '#domainInput');
   const tlsEnabled = isTlsEnabled(root);
   const configuredPort = optionalPortValue(root);
   const configuredPath = inputValue(root, '#pathInput');
+  const configuredPingInterval = numberInputValue(root, '#pingIntervalInput');
   const configuredUrl = configuredDomain
     ? previewConnectionUrl(tlsEnabled, configuredDomain, configuredPort, configuredPath)
     : EMPTY_VALUE;
@@ -1222,6 +1243,11 @@ function deriveConnectionSummary(root: HTMLElement, state: AppState): {
     responseHeaders: responseHeaders || EMPTY_VALUE,
     connectedAt: state.connectedAt ? formatTimestamp(state.connectedAt) : EMPTY_VALUE,
     duration: state.connectedAt && state.connectionState === 'connected' ? formatDuration(state.connectedAt) : EMPTY_VALUE,
+    pingInterval: details
+      ? formatInterval(details.pingIntervalSeconds)
+      : Number.isFinite(configuredPingInterval) && configuredPingInterval > 0
+        ? formatInterval(configuredPingInterval)
+        : EMPTY_VALUE,
     interval: interval === undefined ? EMPTY_VALUE : formatInterval(interval)
   };
 }
@@ -1234,6 +1260,9 @@ function deriveSessionMetrics(state: AppState): {
   inboundPercent: string;
   bootStatus: string;
   bootDetail: string;
+  pingStatus: string;
+  pingDetail: string;
+  pingVariant: string;
   errors: number;
 } {
   const frameEvents = state.events.filter((event) => event.type === 'frame');
@@ -1243,6 +1272,7 @@ function deriveSessionMetrics(state: AppState): {
   const connectionFailureTimes = new Set(
     state.events.filter((event) => event.type === 'connection-failure').map((event) => event.at)
   );
+  const ping = derivePingMetric(state);
   const errors = state.events.filter(
     (event) =>
       event.type === 'connection-failure' ||
@@ -1259,8 +1289,45 @@ function deriveSessionMetrics(state: AppState): {
     inboundPercent: formatPercent(inboundFrames, totalFrames),
     bootStatus: getBootStatus(state.bootResult),
     bootDetail: getBootDetail(state.bootResult),
+    pingStatus: ping.status,
+    pingDetail: ping.detail,
+    pingVariant: ping.variant,
     errors
   };
+}
+
+function derivePingMetric(
+  state: Pick<AppState, 'lastPing' | 'connectionState'>
+): { status: string; detail: string; variant: string } {
+  const ping = state.lastPing;
+
+  if (!ping) {
+    return state.connectionState === 'connected'
+      ? { status: '等待中', detail: '等待首次 Pong', variant: 'ping' }
+      : { status: '未开始', detail: '连接后开始检测', variant: 'neutral' };
+  }
+
+  if (ping.status === 'success') {
+    return {
+      status: '正常',
+      detail: (ping.latencyMs ?? 0) + ' ms · ' + formatTime(ping.at),
+      variant: 'ping'
+    };
+  }
+
+  if (ping.status === 'sent') {
+    return { status: '等待中', detail: '等待 Pong · ' + formatTime(ping.at), variant: 'ping' };
+  }
+
+  if (ping.status === 'timeout') {
+    return {
+      status: '超时',
+      detail: ping.intervalSeconds + ' s 内未响应 · ' + formatTime(ping.at),
+      variant: 'error'
+    };
+  }
+
+  return { status: '失败', detail: '发送失败 · ' + formatTime(ping.at), variant: 'error' };
 }
 
 function deriveEventRows(events: SessionEvent[]): Array<{
@@ -1330,6 +1397,19 @@ function deriveEventRows(events: SessionEvent[]): Array<{
           summary: event.failure.reason,
           full,
           kind: 'connection-failure'
+        };
+      }
+
+      if (event.type === 'ping') {
+        return {
+          time: formatTime(event.at),
+          direction: 'Ping',
+          directionTone: event.status === 'timeout' || event.status === 'error' ? 'error' : 'status',
+          type: event.status === 'success' ? 'Pong' : 'Ping',
+          requestId: EMPTY_VALUE,
+          summary: event.message,
+          full: event.message,
+          kind: 'ping'
         };
       }
 
@@ -1434,6 +1514,10 @@ function isTlsEnabled(root: HTMLElement): boolean {
 function optionalPortValue(root: HTMLElement): number | undefined {
   const value = inputValue(root, '#portInput');
   return value ? Number(value) : undefined;
+}
+
+function numberInputValue(root: HTMLElement, selector: string): number {
+  return Number(inputValue(root, selector));
 }
 
 function inputValue(root: HTMLElement, selector: string): string {
@@ -1617,6 +1701,7 @@ function metricIconForVariant(variant: string): string {
   const icons: Record<string, string> = {
     outbound: '↑',
     inbound: '↓',
+    ping: '⌁',
     boot: '↯',
     error: '!',
     neutral: '•'

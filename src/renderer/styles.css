@@ -533,6 +533,11 @@ p {
   color: var(--blue-deep);
 }
 
+.metric-ping .metric-icon {
+  background: var(--green-soft);
+  color: var(--green-strong);
+}
+
 .metric-boot .metric-icon {
   background: var(--purple-soft);
   color: var(--purple);
