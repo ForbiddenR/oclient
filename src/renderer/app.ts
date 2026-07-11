@@ -63,7 +63,7 @@ interface AppState {
 interface DashboardElements {
   routeTitle: HTMLElement;
   routeEyebrow: HTMLElement;
-  commandActionInput: HTMLInputElement;
+  commandActionInput: HTMLSelectElement;
   commandPayloadInput: HTMLTextAreaElement;
   sendCommandButton: HTMLButtonElement;
   commandResultCard: HTMLElement;
@@ -116,7 +116,7 @@ export function createApp(root: HTMLElement): void {
   const elements: DashboardElements = {
     routeTitle: mustQuery<HTMLElement>(root, '#routeTitle'),
     routeEyebrow: mustQuery<HTMLElement>(root, '#routeEyebrow'),
-    commandActionInput: mustQuery<HTMLInputElement>(root, '#commandActionInput'),
+    commandActionInput: mustQuery<HTMLSelectElement>(root, '#commandActionInput'),
     commandPayloadInput: mustQuery<HTMLTextAreaElement>(root, '#commandPayloadInput'),
     sendCommandButton: mustQuery<HTMLButtonElement>(root, '#sendCommandButton'),
     commandResultCard: mustQuery<HTMLElement>(root, '#commandResultCard'),
@@ -222,7 +222,7 @@ export function createApp(root: HTMLElement): void {
   root.addEventListener('change', (event) => {
     const target = event.target;
 
-    if (target instanceof HTMLInputElement && target.id === 'commandActionInput') {
+    if (target instanceof HTMLSelectElement && target.id === 'commandActionInput') {
       elements.commandPayloadInput.value = JSON.stringify(commandPreset(target.value), null, 2);
     }
 
@@ -525,20 +525,25 @@ function buildAppMarkup(): string {
               <div class="card-body">
                 <label class="field">
                   <span>Action</span>
-                  <input id="commandActionInput" type="text" list="commandActionOptions" value="Heartbeat" autocomplete="off" spellcheck="false" />
-                  <small>选择预设或输入任意 OCPP / 厂商自定义 Action。</small>
+                  <select id="commandActionInput" name="action">
+                    <optgroup label="基础">
+                      <option value="Heartbeat">Heartbeat</option>
+                      <option value="StatusNotification">StatusNotification</option>
+                      <option value="Authorize">Authorize</option>
+                    </optgroup>
+                    <optgroup label="事务">
+                      <option value="StartTransaction">StartTransaction</option>
+                      <option value="StopTransaction">StopTransaction</option>
+                      <option value="MeterValues">MeterValues</option>
+                    </optgroup>
+                    <optgroup label="运维">
+                      <option value="DataTransfer">DataTransfer</option>
+                      <option value="DiagnosticsStatusNotification">DiagnosticsStatusNotification</option>
+                      <option value="FirmwareStatusNotification">FirmwareStatusNotification</option>
+                    </optgroup>
+                  </select>
+                  <small>从客户端支持的 OCPP 1.6 Action 中选择，Payload 会自动载入对应预设。</small>
                 </label>
-                <datalist id="commandActionOptions">
-                  <option value="Heartbeat"></option>
-                  <option value="StatusNotification"></option>
-                  <option value="Authorize"></option>
-                  <option value="StartTransaction"></option>
-                  <option value="StopTransaction"></option>
-                  <option value="MeterValues"></option>
-                  <option value="DataTransfer"></option>
-                  <option value="DiagnosticsStatusNotification"></option>
-                  <option value="FirmwareStatusNotification"></option>
-                </datalist>
                 <label class="field">
                   <span>JSON Payload</span>
                   <textarea id="commandPayloadInput" rows="12" spellcheck="false">{}</textarea>

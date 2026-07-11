@@ -774,6 +774,7 @@ p {
 }
 
 .field input,
+.field select,
 .field textarea,
 .header-row input {
   width: 100%;
@@ -787,6 +788,7 @@ p {
 }
 
 .field input:focus,
+.field select:focus,
 .field textarea:focus,
 .header-row input:focus {
   border-color: var(--blue);
