@@ -1,4 +1,5 @@
 import type {
+  AppTheme,
   ConnectResult,
   ConnectionState,
   HeaderEntry,
@@ -96,8 +97,12 @@ interface DashboardElements {
 
 const MAX_EVENTS = 200;
 const EMPTY_VALUE = '—';
+const THEME_STORAGE_KEY = 'oclient-theme';
 
 export function createApp(root: HTMLElement): void {
+  let theme = initialTheme();
+  applyTheme(theme);
+
   const state: AppState = {
     headers: [createHeaderDraft()],
     caCertificatePath: '',
@@ -117,6 +122,9 @@ export function createApp(root: HTMLElement): void {
   let copyNotificationTimer: number | undefined;
 
   root.innerHTML = buildAppMarkup();
+  const themeToggleButton = mustQuery<HTMLButtonElement>(root, '#themeToggleButton');
+  renderThemeToggle(themeToggleButton, theme);
+  void window.oclient.setWindowTheme(theme);
   const pageScroller = mustQuery<HTMLElement>(root, '.dashboard');
 
   const elements: DashboardElements = {
@@ -227,6 +235,14 @@ export function createApp(root: HTMLElement): void {
   renderHeaders(elements.headerRows, state.headers);
   renderRoute();
   renderDashboard();
+
+  themeToggleButton.addEventListener('click', () => {
+    theme = theme === 'light' ? 'dark' : 'light';
+    applyTheme(theme);
+    renderThemeToggle(themeToggleButton, theme);
+    persistTheme(theme);
+    void window.oclient.setWindowTheme(theme);
+  });
 
   window.addEventListener('hashchange', () => {
     renderRoute();
@@ -487,6 +503,9 @@ function buildAppMarkup(): string {
   return `
     <header class="app-titlebar">
       <div class="app-titlebar-title">OCPP 客户端</div>
+      <button id="themeToggleButton" class="theme-toggle" type="button">
+        <span aria-hidden="true"></span>
+      </button>
     </header>
     <section class="app-shell" aria-label="OCPP 客户端仪表盘">
       <aside class="rail" aria-label="应用导航">
@@ -719,6 +738,40 @@ function buildAppMarkup(): string {
       </main>
     </section>
   `;
+}
+
+function initialTheme(): AppTheme {
+  try {
+    const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (savedTheme === 'light' || savedTheme === 'dark') {
+      return savedTheme;
+    }
+  } catch {
+    // Continue with the operating-system preference when storage is unavailable.
+  }
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function applyTheme(theme: AppTheme): void {
+  document.documentElement.dataset.theme = theme;
+}
+
+function persistTheme(theme: AppTheme): void {
+  try {
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch {
+    // The active theme still applies for this session when storage is unavailable.
+  }
+}
+
+function renderThemeToggle(button: HTMLButtonElement, theme: AppTheme): void {
+  const targetTheme = theme === 'light' ? 'dark' : 'light';
+  const label = targetTheme === 'dark' ? '切换到深色模式' : '切换到浅色模式';
+  button.dataset.theme = theme;
+  button.title = label;
+  button.setAttribute('aria-label', label);
+  button.querySelector('span')!.textContent = theme === 'light' ? '☾' : '☀';
 }
 
 function routeFromHash(hash: string): AppRoute {

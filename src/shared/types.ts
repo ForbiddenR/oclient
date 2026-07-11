@@ -187,6 +187,7 @@ export type SessionEvent =
 export interface OclientApi {
   pickCaCertificate(): Promise<PickCertificateResult>;
   writeClipboardText(text: string): void;
+  setWindowTheme(theme: AppTheme): Promise<void>;
   connect(config: ConnectConfig): Promise<ConnectResult>;
   disconnect(): Promise<void>;
   sendBootNotification(payload: BootNotificationPayload): Promise<BootNotificationResponse>;
@@ -194,7 +195,10 @@ export interface OclientApi {
   onSessionEvent(listener: (event: SessionEvent) => void): () => void;
 }
 
+export type AppTheme = 'light' | 'dark';
+
 export const IPC_CHANNELS = {
+  windowTheme: 'window:theme',
   pickCaCertificate: 'dialog:pick-ca-certificate',
   connect: 'ocpp:connect',
   disconnect: 'ocpp:disconnect',

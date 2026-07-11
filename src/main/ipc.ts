@@ -1,5 +1,6 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron';
 import type {
+  AppTheme,
   BootNotificationPayload,
   ConnectConfig,
   OcppCommandRequest,
@@ -17,6 +18,23 @@ export function registerIpc(mainWindow: BrowserWindow): OcppClient {
   };
 
   const client = new OcppClient(emitSessionEvent);
+
+  ipcMain.handle(IPC_CHANNELS.windowTheme, async (event, theme: AppTheme): Promise<void> => {
+    if ((theme !== 'light' && theme !== 'dark') || process.platform === 'darwin') {
+      return;
+    }
+
+    const parent = BrowserWindow.fromWebContents(event.sender) ?? mainWindow;
+    if (parent.isDestroyed()) {
+      return;
+    }
+
+    parent.setTitleBarOverlay({
+      color: theme === 'dark' ? '#0f172a' : '#f8fafc',
+      symbolColor: theme === 'dark' ? '#e5edf7' : '#475569',
+      height: 40
+    });
+  });
 
   ipcMain.handle(IPC_CHANNELS.pickCaCertificate, async (event): Promise<PickCertificateResult> => {
     const parent = BrowserWindow.fromWebContents(event.sender) ?? mainWindow;
@@ -46,6 +64,7 @@ export function registerIpc(mainWindow: BrowserWindow): OcppClient {
   );
 
   mainWindow.on('closed', () => {
+    ipcMain.removeHandler(IPC_CHANNELS.windowTheme);
     ipcMain.removeHandler(IPC_CHANNELS.pickCaCertificate);
     ipcMain.removeHandler(IPC_CHANNELS.connect);
     ipcMain.removeHandler(IPC_CHANNELS.disconnect);

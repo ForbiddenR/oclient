@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, shell } from 'electron';
+import { app, BrowserWindow, Menu, nativeTheme, shell } from 'electron';
 import { join } from 'node:path';
 import { registerIpc } from './ipc';
 
@@ -19,8 +19,8 @@ function createMainWindow(): BrowserWindow {
       process.platform === 'darwin'
         ? false
         : {
-            color: '#f8fafc',
-            symbolColor: '#475569',
+            color: nativeTheme.shouldUseDarkColors ? '#0f172a' : '#f8fafc',
+            symbolColor: nativeTheme.shouldUseDarkColors ? '#e5edf7' : '#475569',
             height: 40
           },
     webPreferences: {

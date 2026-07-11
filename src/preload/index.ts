@@ -5,6 +5,7 @@ import { IPC_CHANNELS } from '../shared/types';
 const api: OclientApi = {
   pickCaCertificate: () => ipcRenderer.invoke(IPC_CHANNELS.pickCaCertificate),
   writeClipboardText: (text: string) => clipboard.writeText(text),
+  setWindowTheme: (theme) => ipcRenderer.invoke(IPC_CHANNELS.windowTheme, theme),
   connect: (config: ConnectConfig) => ipcRenderer.invoke(IPC_CHANNELS.connect, config),
   disconnect: () => ipcRenderer.invoke(IPC_CHANNELS.disconnect),
   sendOcppCommand: (request: OcppCommandRequest) => ipcRenderer.invoke(IPC_CHANNELS.command, request),
