@@ -34,7 +34,11 @@ describe('OcppClient integration', () => {
       requestHeaders = request.headers;
       socket.on('message', (message) => {
         const frame = JSON.parse(message.toString()) as [2, string, string, Record<string, unknown>];
-        socket.send(JSON.stringify([3, frame[1], { status: 'Accepted', currentTime: '2026-07-03T10:00:00Z', interval: 300 }]));
+        const payload =
+          frame[2] === 'Heartbeat'
+            ? { currentTime: '2026-07-03T10:00:00Z' }
+            : { status: 'Accepted', currentTime: '2026-07-03T10:00:00Z', interval: 300 };
+        socket.send(JSON.stringify([3, frame[1], payload]));
       });
     });
 
@@ -74,8 +78,16 @@ describe('OcppClient integration', () => {
       status: 'Accepted',
       interval: 300
     });
+    const heartbeat = await client.sendOcppCommand({ action: 'Heartbeat', payload: {} });
+    expect(heartbeat).toMatchObject({
+      type: 'callResult',
+      action: 'Heartbeat',
+      rawPayload: { currentTime: '2026-07-03T10:00:00Z' }
+    });
+
     expect(requestHeaders?.['x-station-token']).toBe('secret');
     expect(events.some((raw) => raw.includes('BootNotification'))).toBe(true);
+    expect(events.some((raw) => raw.includes('Heartbeat'))).toBe(true);
 
     await client.disconnect();
   });

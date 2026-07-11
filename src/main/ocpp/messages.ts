@@ -3,12 +3,17 @@ import type {
   BootNotificationCallResult,
   BootNotificationPayload,
   BootNotificationResponse,
+  OcppCommandCallError,
+  OcppCommandCallResult,
+  OcppCommandResponse,
   OcppFrameSummary
 } from '../../shared/types';
 
 export const OCPP_CALL = 2;
 export const OCPP_CALL_RESULT = 3;
 export const OCPP_CALL_ERROR = 4;
+
+const OCPP_ACTION = /^[A-Za-z][A-Za-z0-9_.:-]*$/;
 
 export type OcppCallFrame<TPayload extends Record<string, unknown> = Record<string, unknown>> = [
   typeof OCPP_CALL,
@@ -72,6 +77,24 @@ export function cleanBootNotificationPayload(
     .filter(([, value]) => value.length > 0);
 
   return Object.fromEntries(cleanedEntries);
+}
+
+export function createOcppCall(
+  uniqueId: string,
+  action: string,
+  payload: Record<string, unknown>
+): OcppCallFrame {
+  const normalizedAction = action.trim();
+
+  if (!OCPP_ACTION.test(normalizedAction)) {
+    throw new OcppMessageError('OCPP action must start with a letter and contain only letters, numbers, dots, colons, underscores, or hyphens.');
+  }
+
+  if (!isRecord(payload)) {
+    throw new OcppMessageError('OCPP CALL payload must be a JSON object.');
+  }
+
+  return [OCPP_CALL, uniqueId, normalizedAction, payload];
 }
 
 export function parseOcppFrame(raw: string): ParsedOcppFrame {
@@ -184,6 +207,36 @@ export function toBootNotificationResponse(frame: ParsedOcppFrame): BootNotifica
   }
 
   throw new OcppMessageError('Expected a BootNotification response frame, received an OCPP CALL frame.');
+}
+
+export function toOcppCommandResponse(action: string, frame: ParsedOcppFrame): OcppCommandResponse {
+  if (frame.messageTypeId === OCPP_CALL_RESULT) {
+    if (!isRecord(frame.payload)) {
+      throw new OcppMessageError(action + ' CALLRESULT payload must be an object.');
+    }
+
+    const result: OcppCommandCallResult = {
+      type: 'callResult',
+      uniqueId: frame.uniqueId,
+      action,
+      rawPayload: frame.payload
+    };
+    return result;
+  }
+
+  if (frame.messageTypeId === OCPP_CALL_ERROR) {
+    const result: OcppCommandCallError = {
+      type: 'callError',
+      uniqueId: frame.uniqueId,
+      action,
+      errorCode: frame.errorCode,
+      errorDescription: frame.errorDescription,
+      errorDetails: frame.errorDetails
+    };
+    return result;
+  }
+
+  throw new OcppMessageError('Expected a response frame for ' + action + ', received an OCPP CALL frame.');
 }
 
 export function summarizeOcppFrame(raw: string): OcppFrameSummary | undefined {

@@ -11,6 +11,8 @@ import type {
   ConnectResult,
   ConnectionState,
   HeaderEntry,
+  OcppCommandRequest,
+  OcppCommandResponse,
   SessionEvent,
   TransportProtocol,
   WebSocketConnectionDetails,
@@ -18,13 +20,15 @@ import type {
 } from '../../shared/types';
 import {
   createBootNotificationCall,
+  createOcppCall,
   OCPP_CALL_ERROR,
   OCPP_CALL_RESULT,
   OcppMessageError,
   parseOcppFrame,
   stringifyFrame,
   summarizeOcppFrame,
-  toBootNotificationResponse
+  toBootNotificationResponse,
+  toOcppCommandResponse
 } from './messages';
 
 const DEFAULT_SUBPROTOCOL = 'ocpp1.6';
@@ -49,6 +53,13 @@ const RESERVED_HEADERS = new Set([
 
 type LogLevel = Extract<SessionEvent, { type: 'log' }>['level'];
 
+interface PendingCommand {
+  action: string;
+  timer: NodeJS.Timeout;
+  resolve: (response: OcppCommandResponse) => void;
+  reject: (error: Error) => void;
+}
+
 interface PendingRequest {
   action: 'BootNotification';
   timer: NodeJS.Timeout;
@@ -67,6 +78,7 @@ export class OcppClient {
   private socket?: WebSocket;
   private requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS;
   private readonly pendingRequests = new Map<string, PendingRequest>();
+  private readonly pendingCommands = new Map<string, PendingCommand>();
 
   constructor(private readonly emitSessionEvent: (event: SessionEvent) => void = () => undefined) {}
 
@@ -329,6 +341,46 @@ export class OcppClient {
     return responsePromise;
   }
 
+  async sendOcppCommand(request: OcppCommandRequest): Promise<OcppCommandResponse> {
+    const socket = this.socket;
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      throw new OcppClientError('Connect before sending an OCPP command.');
+    }
+
+    const uniqueId = randomUUID();
+    const action = request.action.trim();
+    const frame = createOcppCall(uniqueId, action, request.payload);
+    const raw = stringifyFrame(frame);
+    const timeoutMs = this.requestTimeoutMs;
+
+    const responsePromise = new Promise<OcppCommandResponse>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingCommands.delete(uniqueId);
+        reject(new OcppClientError(action + ' timed out after ' + timeoutMs / 1000 + ' seconds.'));
+      }, timeoutMs);
+
+      this.pendingCommands.set(uniqueId, { action, timer, resolve, reject });
+    });
+
+    socket.send(raw, (error) => {
+      if (error) {
+        const pending = this.pendingCommands.get(uniqueId);
+        if (pending) {
+          clearTimeout(pending.timer);
+          this.pendingCommands.delete(uniqueId);
+          pending.reject(error);
+        }
+        return;
+      }
+
+      this.emitSessionEvent({ type: 'frame', at: now(), direction: 'out', raw, summary: summarizeOcppFrame(raw) });
+      this.log('info', action + ' sent with request ID ' + uniqueId + '.');
+    });
+
+    return responsePromise;
+  }
+
   private handleMessage(data: RawData): void {
     const raw = rawDataToString(data);
     this.emitSessionEvent({ type: 'frame', at: now(), direction: 'in', raw, summary: summarizeOcppFrame(raw) });
@@ -347,9 +399,34 @@ export class OcppClient {
       return;
     }
 
+    const pendingCommand = this.pendingCommands.get(frame.uniqueId);
+    if (pendingCommand) {
+      clearTimeout(pendingCommand.timer);
+      this.pendingCommands.delete(frame.uniqueId);
+
+      let response: OcppCommandResponse;
+      try {
+        response = toOcppCommandResponse(pendingCommand.action, frame);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.log('error', pendingCommand.action + ' response was invalid. ' + message);
+        pendingCommand.reject(new OcppClientError(message));
+        return;
+      }
+
+      if (response.type === 'callResult') {
+        this.log('success', pendingCommand.action + ' CALLRESULT received.');
+      } else {
+        this.log('error', pendingCommand.action + ' failed: ' + response.errorCode + ' ' + response.errorDescription);
+      }
+
+      pendingCommand.resolve(response);
+      return;
+    }
+
     const pending = this.pendingRequests.get(frame.uniqueId);
     if (!pending) {
-      this.log('warn', `Received response for unknown request ID ${frame.uniqueId}.`);
+      this.log('warn', 'Received response for unknown request ID ' + frame.uniqueId + '.');
       return;
     }
 
@@ -361,7 +438,7 @@ export class OcppClient {
       response = toBootNotificationResponse(frame);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.log('error', `BootNotification response was invalid. ${message}`);
+      this.log('error', 'BootNotification response was invalid. ' + message);
       pending.reject(new OcppClientError(message));
       return;
     }
@@ -369,9 +446,9 @@ export class OcppClient {
     this.emitSessionEvent({ type: 'boot-result', at: now(), result: response });
 
     if (response.type === 'callResult') {
-      this.log('success', `BootNotification result: ${response.status}.`);
+      this.log('success', 'BootNotification result: ' + response.status + '.');
     } else {
-      this.log('error', `BootNotification failed: ${response.errorCode} ${response.errorDescription}`);
+      this.log('error', 'BootNotification failed: ' + response.errorCode + ' ' + response.errorDescription);
     }
 
     pending.resolve(response);
@@ -382,6 +459,12 @@ export class OcppClient {
       clearTimeout(pending.timer);
       pending.reject(error);
       this.pendingRequests.delete(uniqueId);
+    }
+
+    for (const [uniqueId, pending] of this.pendingCommands) {
+      clearTimeout(pending.timer);
+      pending.reject(error);
+      this.pendingCommands.delete(uniqueId);
     }
   }
 

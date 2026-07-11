@@ -5,6 +5,7 @@ import type {
   ConnectResult,
   ConnectionState,
   HeaderEntry,
+  OcppCommandResponse,
   SessionEvent,
   TransportProtocol
 } from '../shared/types';
@@ -25,8 +26,24 @@ type AppRoute = 'dashboard' | 'messages' | 'boot' | 'settings';
 const ROUTE_METADATA: Record<AppRoute, { title: string; eyebrow: string }> = {
   dashboard: { title: '仪表盘', eyebrow: '实时连接概览' },
   messages: { title: '消息日志', eyebrow: '会话帧与事件' },
-  boot: { title: 'BootNotification', eyebrow: 'OCPP 操作' },
+  boot: { title: 'OCPP 命令', eyebrow: '充电点操作' },
   settings: { title: '连接设置', eyebrow: 'WebSocket 配置' }
+};
+
+const OCPP_COMMAND_PRESETS: Record<string, () => Record<string, unknown>> = {
+  Heartbeat: () => ({}),
+  StatusNotification: () => ({ connectorId: 1, errorCode: 'NoError', status: 'Available', timestamp: new Date().toISOString() }),
+  Authorize: () => ({ idTag: 'TEST-TAG' }),
+  StartTransaction: () => ({ connectorId: 1, idTag: 'TEST-TAG', meterStart: 0, timestamp: new Date().toISOString() }),
+  StopTransaction: () => ({ transactionId: 1, meterStop: 0, timestamp: new Date().toISOString() }),
+  MeterValues: () => ({
+    connectorId: 1,
+    meterValue: [{ timestamp: new Date().toISOString(), sampledValue: [{ value: '0', measurand: 'Energy.Active.Import.Register', unit: 'Wh' }] }]
+  }),
+  DataTransfer: () => ({ vendorId: 'VendorId', messageId: 'MessageId', data: '' }),
+  DiagnosticsStatusNotification: () => ({ status: 'Idle' }),
+  FirmwareStatusNotification: () => ({ status: 'Idle' })
+
 };
 
 interface AppState {
@@ -37,6 +54,8 @@ interface AppState {
   events: SessionEvent[];
   bootResult?: BootResultEvent;
   connectResult?: ConnectResult;
+  commandResult?: OcppCommandResponse;
+  commandError?: string;
   connectionFailure?: ConnectionFailureEvent;
   connectedAt?: string;
   disconnectedAt?: string;
@@ -45,6 +64,10 @@ interface AppState {
 interface DashboardElements {
   routeTitle: HTMLElement;
   routeEyebrow: HTMLElement;
+  commandActionInput: HTMLInputElement;
+  commandPayloadInput: HTMLTextAreaElement;
+  sendCommandButton: HTMLButtonElement;
+  commandResultCard: HTMLElement;
   form: HTMLFormElement;
   caSection: HTMLElement;
   caPath: HTMLElement;
@@ -81,6 +104,8 @@ export function createApp(root: HTMLElement): void {
     events: [],
     bootResult: undefined,
     connectResult: undefined,
+    commandResult: undefined,
+    commandError: undefined,
     connectionFailure: undefined,
     connectedAt: undefined,
     disconnectedAt: undefined
@@ -92,6 +117,10 @@ export function createApp(root: HTMLElement): void {
   const elements: DashboardElements = {
     routeTitle: mustQuery<HTMLElement>(root, '#routeTitle'),
     routeEyebrow: mustQuery<HTMLElement>(root, '#routeEyebrow'),
+    commandActionInput: mustQuery<HTMLInputElement>(root, '#commandActionInput'),
+    commandPayloadInput: mustQuery<HTMLTextAreaElement>(root, '#commandPayloadInput'),
+    sendCommandButton: mustQuery<HTMLButtonElement>(root, '#sendCommandButton'),
+    commandResultCard: mustQuery<HTMLElement>(root, '#commandResultCard'),
     form: mustQuery<HTMLFormElement>(root, '#controlForm'),
     caSection: mustQuery<HTMLElement>(root, '#caSection'),
     caPath: mustQuery<HTMLElement>(root, '#caPath'),
@@ -147,6 +176,7 @@ export function createApp(root: HTMLElement): void {
     renderTransport(root, elements.caSection, elements.caPath, state.caCertificatePath, state.allowInsecureTls);
     renderStatus(elements, state.connectionState);
     renderConnectionFailure(elements.failureNotification, state.connectionFailure);
+    renderCommandResult(elements.commandResultCard, state.commandResult, state.commandError);
     renderConnectionOverview(elements.overviewGrid, root, state);
     renderSessionMetrics(elements.metricGrid, state);
     renderLog(elements.eventLog, state.events);
@@ -190,6 +220,10 @@ export function createApp(root: HTMLElement): void {
 
   root.addEventListener('change', (event) => {
     const target = event.target;
+
+    if (target instanceof HTMLInputElement && target.id === 'commandActionInput') {
+      elements.commandPayloadInput.value = JSON.stringify(commandPreset(target.value), null, 2);
+    }
 
     if (target instanceof HTMLInputElement && target.name === 'protocol') {
       state.allowInsecureTls = false;
@@ -269,6 +303,8 @@ export function createApp(root: HTMLElement): void {
     event.preventDefault();
     elements.connectButton.disabled = true;
     state.connectResult = undefined;
+    state.commandResult = undefined;
+    state.commandError = undefined;
     state.connectionFailure = undefined;
     state.connectedAt = undefined;
     state.disconnectedAt = undefined;
@@ -338,6 +374,28 @@ export function createApp(root: HTMLElement): void {
     }
   });
 
+  elements.sendCommandButton.addEventListener('click', async () => {
+    state.commandResult = undefined;
+    state.commandError = undefined;
+    renderCommandResult(elements.commandResultCard);
+    elements.sendCommandButton.disabled = true;
+    elements.sendCommandButton.dataset.pending = 'true';
+
+    try {
+      const response = await window.oclient.sendOcppCommand({
+        action: elements.commandActionInput.value,
+        payload: parseCommandPayload(elements.commandPayloadInput.value)
+      });
+      state.commandResult = response;
+    } catch (error) {
+      state.commandError = getErrorMessage(error);
+      pushLocalLog(state, state.commandError, 'error');
+    } finally {
+      delete elements.sendCommandButton.dataset.pending;
+      renderDashboard();
+    }
+  });
+
   elements.clearLogButton.addEventListener('click', () => {
     state.events = [];
     renderDashboard();
@@ -391,7 +449,7 @@ function buildAppMarkup(): string {
         <nav class="rail-nav" aria-label="仪表盘分区">
           <a class="active" href="#/dashboard" data-route-link="dashboard" title="仪表盘" aria-label="仪表盘"><span class="rail-icon" aria-hidden="true">⌂</span><span>仪表盘</span></a>
           <a href="#/messages" data-route-link="messages" title="消息日志" aria-label="消息日志"><span class="rail-icon" aria-hidden="true">⇄</span><span>消息日志</span></a>
-          <a href="#/boot" data-route-link="boot" title="BootNotification" aria-label="BootNotification"><span class="rail-icon" aria-hidden="true">↯</span><span>BootNotification</span></a>
+          <a href="#/boot" data-route-link="boot" title="OCPP 命令" aria-label="OCPP 命令"><span class="rail-icon" aria-hidden="true">↯</span><span>OCPP 命令</span></a>
           <a href="#/settings" data-route-link="settings" title="连接设置" aria-label="连接设置"><span class="rail-icon" aria-hidden="true">⚙</span><span>连接设置</span></a>
         </nav>
 
@@ -454,6 +512,52 @@ function buildAppMarkup(): string {
           </section>
 
           <form id="controlForm" class="side-stack">
+            <section class="card command-card" data-route-section="boot">
+              <header class="card-head">
+                <div>
+                  <p class="eyebrow">通用 CALL</p>
+                  <h3>OCPP 1.6 命令控制台</h3>
+                </div>
+              </header>
+              <div class="card-body">
+                <label class="field">
+                  <span>Action</span>
+                  <input id="commandActionInput" type="text" list="commandActionOptions" value="Heartbeat" autocomplete="off" spellcheck="false" />
+                  <small>选择预设或输入任意 OCPP / 厂商自定义 Action。</small>
+                </label>
+                <datalist id="commandActionOptions">
+                  <option value="Heartbeat"></option>
+                  <option value="StatusNotification"></option>
+                  <option value="Authorize"></option>
+                  <option value="StartTransaction"></option>
+                  <option value="StopTransaction"></option>
+                  <option value="MeterValues"></option>
+                  <option value="DataTransfer"></option>
+                  <option value="DiagnosticsStatusNotification"></option>
+                  <option value="FirmwareStatusNotification"></option>
+                </datalist>
+                <label class="field">
+                  <span>JSON Payload</span>
+                  <textarea id="commandPayloadInput" rows="12" spellcheck="false">{}</textarea>
+                </label>
+                <div class="button-row">
+                  <button id="sendCommandButton" class="primary" type="button" disabled>发送 OCPP 命令</button>
+                </div>
+              </div>
+            </section>
+
+            <section id="commandResultCard" class="card result-card command-result-card empty" data-route-section="boot">
+              <header class="card-head">
+                <div>
+                  <p class="eyebrow">通用响应</p>
+                  <h3>命令结果</h3>
+                </div>
+              </header>
+              <div class="card-body">
+                <p class="empty-note">发送 OCPP 命令后查看 CALLRESULT 或 CALLERROR。</p>
+              </div>
+            </section>
+
             <section id="boot" class="card boot-card" data-route-section="boot">
               <header class="card-head">
                 <div>
@@ -749,6 +853,7 @@ function renderStatus(elements: DashboardElements, status: ConnectionState): voi
   elements.connectButton.disabled = isConnecting || isConnected || isDisconnecting;
   elements.disconnectButton.disabled = !isConnected || isDisconnecting;
   elements.bootButton.disabled = !isConnected;
+  elements.sendCommandButton.disabled = !isConnected || elements.sendCommandButton.dataset.pending === 'true';
 
   elements.statusBadge.className = `status-badge is-${status}`;
   elements.statusBadge.textContent = labelForStatus(status);
@@ -865,6 +970,85 @@ function renderLog(container: HTMLElement, events: SessionEvent[]): void {
       return item;
     })
   );
+}
+
+function commandPreset(action: string): Record<string, unknown> {
+  return OCPP_COMMAND_PRESETS[action.trim()]?.() ?? {};
+}
+
+function parseCommandPayload(raw: string): Record<string, unknown> {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(raw);
+  } catch (error) {
+    throw new Error('Payload 必须是有效的 JSON：' + getErrorMessage(error));
+  }
+
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+    throw new Error('OCPP CALL Payload 必须是 JSON 对象。');
+  }
+
+  return payload as Record<string, unknown>;
+}
+
+function renderCommandResult(container: HTMLElement, response?: OcppCommandResponse, error?: string): void {
+  if (error) {
+    container.className = 'card result-card command-result-card status-rejected';
+    const body = document.createElement('div');
+    body.className = 'card-body';
+    const title = document.createElement('p');
+    title.className = 'result-title';
+    const icon = document.createElement('span');
+    icon.className = 'result-icon';
+    title.append(icon, document.createTextNode('命令未发送'));
+    const message = document.createElement('p');
+    message.className = 'empty-note';
+    message.textContent = error;
+    body.append(title, message);
+    container.replaceChildren(body);
+    return;
+  }
+
+  if (!response) {
+    container.className = 'card result-card command-result-card empty';
+    container.innerHTML = '<header class="card-head"><div><p class="eyebrow">通用响应</p><h3>命令结果</h3></div></header><div class="card-body"><p class="empty-note">发送 OCPP 命令后查看 CALLRESULT 或 CALLERROR。</p></div>';
+    return;
+  }
+
+  const head = document.createElement('header');
+  head.className = 'card-head';
+  const headWrap = document.createElement('div');
+  const headEyebrow = document.createElement('p');
+  headEyebrow.className = 'eyebrow';
+  headEyebrow.textContent = '通用响应';
+  const headTitle = document.createElement('h3');
+  headTitle.textContent = response.action + ' 结果';
+  headWrap.append(headEyebrow, headTitle);
+  head.append(headWrap);
+
+  const body = document.createElement('div');
+  body.className = 'card-body';
+  const title = document.createElement('p');
+  title.className = 'result-title';
+  const icon = document.createElement('span');
+  icon.className = 'result-icon';
+  title.append(icon, document.createTextNode(response.type === 'callResult' ? 'CALLRESULT' : response.errorCode));
+
+  const details = document.createElement('dl');
+  details.className = 'result-grid';
+  appendDefinition(details, 'Action', response.action);
+  appendDefinition(details, 'Request ID', response.uniqueId);
+  if (response.type === 'callResult') {
+    appendDefinition(details, 'Payload', formatResultDetails(response.rawPayload));
+  } else {
+    appendDefinition(details, '错误码', response.errorCode);
+    appendDefinition(details, '描述', response.errorDescription || EMPTY_VALUE);
+    appendDefinition(details, '详情', formatResultDetails(response.errorDetails));
+  }
+
+  body.append(title, details);
+  container.className = 'card result-card command-result-card status-' + (response.type === 'callResult' ? 'accepted' : 'rejected');
+  container.replaceChildren(head, body);
 }
 
 function resetResult(container: HTMLElement, state: { bootResult?: BootResultEvent }): void {

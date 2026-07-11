@@ -76,6 +76,29 @@ export interface PickCertificateResult {
   filePath?: string;
 }
 
+export interface OcppCommandRequest {
+  action: string;
+  payload: Record<string, unknown>;
+}
+
+export interface OcppCommandCallResult {
+  type: 'callResult';
+  uniqueId: string;
+  action: string;
+  rawPayload: unknown;
+}
+
+export interface OcppCommandCallError {
+  type: 'callError';
+  uniqueId: string;
+  action: string;
+  errorCode: string;
+  errorDescription: string;
+  errorDetails: unknown;
+}
+
+export type OcppCommandResponse = OcppCommandCallResult | OcppCommandCallError;
+
 export interface BootNotificationPayload {
   chargePointVendor: string;
   chargePointModel: string;
@@ -152,6 +175,7 @@ export interface OclientApi {
   connect(config: ConnectConfig): Promise<ConnectResult>;
   disconnect(): Promise<void>;
   sendBootNotification(payload: BootNotificationPayload): Promise<BootNotificationResponse>;
+  sendOcppCommand(request: OcppCommandRequest): Promise<OcppCommandResponse>;
   onSessionEvent(listener: (event: SessionEvent) => void): () => void;
 }
 
@@ -160,5 +184,6 @@ export const IPC_CHANNELS = {
   connect: 'ocpp:connect',
   disconnect: 'ocpp:disconnect',
   bootNotification: 'ocpp:boot-notification',
+  command: 'ocpp:command',
   sessionEvent: 'ocpp:session-event'
 } as const;

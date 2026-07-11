@@ -2,6 +2,7 @@ import { BrowserWindow, dialog, ipcMain } from 'electron';
 import type {
   BootNotificationPayload,
   ConnectConfig,
+  OcppCommandRequest,
   PickCertificateResult,
   SessionEvent
 } from '../shared/types';
@@ -37,6 +38,9 @@ export function registerIpc(mainWindow: BrowserWindow): OcppClient {
 
   ipcMain.handle(IPC_CHANNELS.connect, async (_event, config: ConnectConfig) => client.connect(config));
   ipcMain.handle(IPC_CHANNELS.disconnect, async () => client.disconnect());
+  ipcMain.handle(IPC_CHANNELS.command, async (_event, request: OcppCommandRequest) =>
+    client.sendOcppCommand(request)
+  );
   ipcMain.handle(IPC_CHANNELS.bootNotification, async (_event, payload: BootNotificationPayload) =>
     client.sendBootNotification(payload)
   );
@@ -45,6 +49,7 @@ export function registerIpc(mainWindow: BrowserWindow): OcppClient {
     ipcMain.removeHandler(IPC_CHANNELS.pickCaCertificate);
     ipcMain.removeHandler(IPC_CHANNELS.connect);
     ipcMain.removeHandler(IPC_CHANNELS.disconnect);
+    ipcMain.removeHandler(IPC_CHANNELS.command);
     ipcMain.removeHandler(IPC_CHANNELS.bootNotification);
     void client.disconnect(false);
   });

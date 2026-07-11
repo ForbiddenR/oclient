@@ -721,6 +721,7 @@ p {
 }
 
 .field input,
+.field textarea,
 .header-row input {
   width: 100%;
   border: 1px solid var(--line-strong);
@@ -733,12 +734,23 @@ p {
 }
 
 .field input:focus,
+.field textarea:focus,
 .header-row input:focus {
   border-color: var(--blue);
   box-shadow: 0 0 0 3px var(--blue-soft);
 }
 
+.field textarea {
+  min-height: 220px;
+  resize: vertical;
+  font-family: "SF Mono", "Cascadia Code", ui-monospace, monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  tab-size: 2;
+}
+
 .field input::placeholder,
+.field textarea::placeholder,
 .header-row input::placeholder {
   color: rgba(100, 116, 139, 0.7);
 }
@@ -1011,6 +1023,10 @@ p {
 }
 
 /* Result and notices */
+.command-result-card .result-grid dd {
+  max-height: 320px;
+}
+
 .result-card .card-body {
   display: flex;
   flex-direction: column;

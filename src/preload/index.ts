@@ -1,11 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { BootNotificationPayload, ConnectConfig, OclientApi, SessionEvent } from '../shared/types';
+import type { BootNotificationPayload, ConnectConfig, OclientApi, OcppCommandRequest, SessionEvent } from '../shared/types';
 import { IPC_CHANNELS } from '../shared/types';
 
 const api: OclientApi = {
   pickCaCertificate: () => ipcRenderer.invoke(IPC_CHANNELS.pickCaCertificate),
   connect: (config: ConnectConfig) => ipcRenderer.invoke(IPC_CHANNELS.connect, config),
   disconnect: () => ipcRenderer.invoke(IPC_CHANNELS.disconnect),
+  sendOcppCommand: (request: OcppCommandRequest) => ipcRenderer.invoke(IPC_CHANNELS.command, request),
   sendBootNotification: (payload: BootNotificationPayload) =>
     ipcRenderer.invoke(IPC_CHANNELS.bootNotification, payload),
   onSessionEvent: (listener: (event: SessionEvent) => void) => {

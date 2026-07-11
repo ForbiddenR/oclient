@@ -1,16 +1,51 @@
 import { describe, expect, it } from 'vitest';
 import {
   createBootNotificationCall,
+  createOcppCall,
   OCPP_CALL,
   OCPP_CALL_ERROR,
   OCPP_CALL_RESULT,
   OcppMessageError,
   parseOcppFrame,
   summarizeOcppFrame,
-  toBootNotificationResponse
+  toBootNotificationResponse,
+  toOcppCommandResponse
 } from '../../src/main/ocpp/messages';
 
 const uniqueId = 'boot-001';
+
+describe('generic OCPP messages', () => {
+  it('creates a CALL for any valid OCPP action', () => {
+    expect(createOcppCall(uniqueId, 'Heartbeat', {})).toEqual([OCPP_CALL, uniqueId, 'Heartbeat', {}]);
+    expect(createOcppCall(uniqueId, 'StatusNotification', { connectorId: 1, status: 'Available' })).toEqual([
+      OCPP_CALL,
+      uniqueId,
+      'StatusNotification',
+      { connectorId: 1, status: 'Available' }
+    ]);
+  });
+
+  it('rejects invalid action names and non-object payloads', () => {
+    expect(() => createOcppCall(uniqueId, 'Bad Action', {})).toThrow(OcppMessageError);
+    expect(() => createOcppCall(uniqueId, 'Heartbeat', [] as unknown as Record<string, unknown>)).toThrow(OcppMessageError);
+  });
+
+  it('parses generic CALLRESULT and CALLERROR responses', () => {
+    const result = parseOcppFrame(JSON.stringify([OCPP_CALL_RESULT, uniqueId, { currentTime: '2026-07-11T00:00:00Z' }]));
+    const error = parseOcppFrame(JSON.stringify([OCPP_CALL_ERROR, uniqueId, 'NotSupported', 'Unsupported action', {}]));
+
+    expect(toOcppCommandResponse('Heartbeat', result)).toMatchObject({
+      type: 'callResult',
+      action: 'Heartbeat',
+      rawPayload: { currentTime: '2026-07-11T00:00:00Z' }
+    });
+    expect(toOcppCommandResponse('Heartbeat', error)).toMatchObject({
+      type: 'callError',
+      action: 'Heartbeat',
+      errorCode: 'NotSupported'
+    });
+  });
+});
 
 describe('OCPP BootNotification messages', () => {
   it('creates a trimmed BootNotification CALL frame', () => {
