@@ -186,6 +186,7 @@ export type SessionEvent =
 
 export interface OclientApi {
   pickCaCertificate(): Promise<PickCertificateResult>;
+  writeClipboardText(text: string): void;
   connect(config: ConnectConfig): Promise<ConnectResult>;
   disconnect(): Promise<void>;
   sendBootNotification(payload: BootNotificationPayload): Promise<BootNotificationResponse>;

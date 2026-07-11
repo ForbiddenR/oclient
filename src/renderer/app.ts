@@ -89,6 +89,7 @@ interface DashboardElements {
   overviewGrid: HTMLElement;
   metricGrid: HTMLElement;
   eventLog: HTMLElement;
+  copyNotification: HTMLElement;
   noticesList: HTMLElement;
   resultCard: HTMLElement;
 }
@@ -113,8 +114,10 @@ export function createApp(root: HTMLElement): void {
     lastPing: undefined
   };
   let durationTimer: number | undefined;
+  let copyNotificationTimer: number | undefined;
 
   root.innerHTML = buildAppMarkup();
+  const pageScroller = mustQuery<HTMLElement>(root, '.dashboard');
 
   const elements: DashboardElements = {
     routeTitle: mustQuery<HTMLElement>(root, '#routeTitle'),
@@ -143,6 +146,7 @@ export function createApp(root: HTMLElement): void {
     overviewGrid: mustQuery<HTMLElement>(root, '#overviewGrid'),
     metricGrid: mustQuery<HTMLElement>(root, '#metricGrid'),
     eventLog: mustQuery<HTMLElement>(root, '#eventLog'),
+    copyNotification: mustQuery<HTMLElement>(root, '#copyNotification'),
     noticesList: mustQuery<HTMLElement>(root, '#noticesList'),
     resultCard: mustQuery<HTMLElement>(root, '#resultCard')
   };
@@ -154,7 +158,7 @@ export function createApp(root: HTMLElement): void {
     elements.routeTitle.textContent = metadata.title;
     elements.routeEyebrow.textContent = metadata.eyebrow;
     document.title = metadata.title + ' · OCPP 客户端';
-    mustQuery<HTMLElement>(root, '.dashboard').dataset.currentRoute = route;
+    pageScroller.dataset.currentRoute = route;
 
     root.querySelectorAll<HTMLElement>('[data-route-section]').forEach((section) => {
       section.hidden = section.dataset.routeSection !== route;
@@ -213,13 +217,27 @@ export function createApp(root: HTMLElement): void {
     durationTimer = undefined;
   };
 
+  const showCopyNotification = (message: string, tone: 'success' | 'error') => {
+    if (copyNotificationTimer !== undefined) {
+      window.clearTimeout(copyNotificationTimer);
+    }
+
+    elements.copyNotification.textContent = message;
+    elements.copyNotification.className = `copy-notification copy-notification-${tone}`;
+    elements.copyNotification.hidden = false;
+    copyNotificationTimer = window.setTimeout(() => {
+      elements.copyNotification.hidden = true;
+      copyNotificationTimer = undefined;
+    }, 1_800);
+  };
+
   renderHeaders(elements.headerRows, state.headers);
   renderRoute();
   renderDashboard();
 
   window.addEventListener('hashchange', () => {
     renderRoute();
-    window.scrollTo(0, 0);
+    pageScroller.scrollTo(0, 0);
   });
 
   root.addEventListener('change', (event) => {
@@ -258,6 +276,27 @@ export function createApp(root: HTMLElement): void {
     if (target instanceof HTMLInputElement && ['domainInput', 'portInput', 'pathInput', 'subprotocolInput', 'pingIntervalInput'].includes(target.id)) {
       renderConnectionOverview(elements.overviewGrid, root, state);
       renderStatus(elements, state.connectionState);
+    }
+  });
+
+  elements.eventLog.addEventListener('dblclick', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    const summary = target.closest<HTMLElement>('[data-copy-summary]');
+    const text = summary?.dataset.copySummary;
+    if (!summary || !elements.eventLog.contains(summary) || text === undefined) {
+      return;
+    }
+
+    event.preventDefault();
+    try {
+      window.oclient.writeClipboardText(text);
+      showCopyNotification('已复制完整摘要', 'success');
+    } catch {
+      showCopyNotification('复制摘要失败', 'error');
     }
   });
 
@@ -525,6 +564,7 @@ function buildAppMarkup(): string {
               </div>
               <div id="eventLog" class="log-rows" aria-live="polite"></div>
             </div>
+            <div id="copyNotification" class="copy-notification" role="status" aria-live="polite" hidden></div>
           </section>
 
           <form id="controlForm" class="side-stack">
@@ -1001,7 +1041,9 @@ function renderLog(container: HTMLElement, events: SessionEvent[]): void {
       const summary = document.createElement('span');
       summary.className = 'log-summary';
       summary.textContent = row.summary;
-      summary.title = row.full;
+      summary.title = '双击复制完整摘要';
+      summary.dataset.copySummary = row.full;
+      summary.setAttribute('aria-label', '摘要，双击复制完整内容');
 
       item.append(time, direction, type, request, summary);
       return item;
