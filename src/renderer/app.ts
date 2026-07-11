@@ -1,7 +1,4 @@
 import type {
-  BootNotificationCallError,
-  BootNotificationCallResult,
-  BootNotificationPayload,
   ConnectResult,
   ConnectionState,
   HeaderEntry,
@@ -31,6 +28,10 @@ const ROUTE_METADATA: Record<AppRoute, { title: string; eyebrow: string }> = {
 };
 
 const OCPP_COMMAND_PRESETS: Record<string, () => Record<string, unknown>> = {
+  BootNotification: () => ({
+    chargePointVendor: 'Workbench EV',
+    chargePointModel: 'Bench-16J'
+  }),
   Heartbeat: () => ({}),
   StatusNotification: () => ({ connectorId: 1, errorCode: 'NoError', status: 'Available', timestamp: new Date().toISOString() }),
   Authorize: () => ({ idTag: 'TEST-TAG' }),
@@ -80,7 +81,6 @@ interface DashboardElements {
   headerRows: HTMLElement;
   connectButton: HTMLButtonElement;
   disconnectButton: HTMLButtonElement;
-  bootButton: HTMLButtonElement;
   clearLogButton: HTMLButtonElement;
   statusBadge: HTMLElement;
   railStatus: HTMLElement;
@@ -92,7 +92,6 @@ interface DashboardElements {
   eventLog: HTMLElement;
   copyNotification: HTMLElement;
   noticesList: HTMLElement;
-  resultCard: HTMLElement;
 }
 
 const MAX_EVENTS = 200;
@@ -138,7 +137,6 @@ export function createApp(root: HTMLElement): void {
     headerRows: mustQuery<HTMLElement>(root, '#headerRows'),
     connectButton: mustQuery<HTMLButtonElement>(root, '#connectButton'),
     disconnectButton: mustQuery<HTMLButtonElement>(root, '#disconnectButton'),
-    bootButton: mustQuery<HTMLButtonElement>(root, '#bootButton'),
     clearLogButton: mustQuery<HTMLButtonElement>(root, '#clearLogButton'),
     statusBadge: mustQuery<HTMLElement>(root, '#statusBadge'),
     railStatus: mustQuery<HTMLElement>(root, '#railStatus'),
@@ -149,8 +147,7 @@ export function createApp(root: HTMLElement): void {
     metricGrid: mustQuery<HTMLElement>(root, '#metricGrid'),
     eventLog: mustQuery<HTMLElement>(root, '#eventLog'),
     copyNotification: mustQuery<HTMLElement>(root, '#copyNotification'),
-    noticesList: mustQuery<HTMLElement>(root, '#noticesList'),
-    resultCard: mustQuery<HTMLElement>(root, '#resultCard')
+    noticesList: mustQuery<HTMLElement>(root, '#noticesList')
   };
 
   const renderRoute = () => {
@@ -169,7 +166,6 @@ export function createApp(root: HTMLElement): void {
     elements.form.hidden = route === 'messages';
     elements.connectButton.hidden = route !== 'dashboard';
     elements.disconnectButton.hidden = route !== 'dashboard';
-    elements.bootButton.hidden = route !== 'boot';
 
     root.querySelectorAll<HTMLAnchorElement>('[data-route-link]').forEach((link) => {
       const isActive = link.dataset.routeLink === route;
@@ -191,11 +187,6 @@ export function createApp(root: HTMLElement): void {
     renderSessionMetrics(elements.metricGrid, state);
     renderLog(elements.eventLog, state.events);
     renderNotices(elements.noticesList, state.events, state.bootResult);
-    if (state.bootResult) {
-      renderResult(elements.resultCard, state.bootResult);
-    } else {
-      resetResult(elements.resultCard, state);
-    }
   };
 
   const startDurationTimer = () => {
@@ -371,7 +362,7 @@ export function createApp(root: HTMLElement): void {
     state.connectedAt = undefined;
     state.disconnectedAt = undefined;
     state.lastPing = undefined;
-    resetResult(elements.resultCard, state);
+    state.bootResult = undefined;
     stopDurationTimer();
 
     try {
@@ -416,27 +407,12 @@ export function createApp(root: HTMLElement): void {
 
   elements.disconnectButton.addEventListener('click', async () => {
     elements.disconnectButton.disabled = true;
-    resetResult(elements.resultCard, state);
+    state.bootResult = undefined;
     try {
       await window.oclient.disconnect();
     } catch (error) {
       pushLocalLog(state, getErrorMessage(error), 'error');
       renderDashboard();
-    }
-  });
-
-  elements.bootButton.addEventListener('click', async () => {
-    elements.bootButton.disabled = true;
-
-    try {
-      const response = await window.oclient.sendBootNotification(collectBootPayload(root));
-      state.bootResult = { type: 'boot-result', at: new Date().toISOString(), result: response };
-      renderDashboard();
-    } catch (error) {
-      pushLocalLog(state, getErrorMessage(error), 'error');
-      renderDashboard();
-    } finally {
-      renderStatus(elements, state.connectionState);
     }
   });
 
@@ -453,6 +429,10 @@ export function createApp(root: HTMLElement): void {
         payload: parseCommandPayload(elements.commandPayloadInput.value)
       });
       state.commandResult = response;
+      const bootResult = commandResponseToBootResult(response);
+      if (bootResult) {
+        state.bootResult = bootResult;
+      }
     } catch (error) {
       state.commandError = getErrorMessage(error);
       pushLocalLog(state, state.commandError, 'error');
@@ -542,7 +522,6 @@ function buildAppMarkup(): string {
           <div class="session-actions" aria-label="会话操作">
             <button id="connectButton" class="primary" type="submit" form="controlForm" formnovalidate>连接</button>
             <button id="disconnectButton" class="secondary" type="button" disabled>断开连接</button>
-            <button id="bootButton" class="accent" type="button" disabled>发送 BootNotification</button>
           </div>
         </header>
 
@@ -602,6 +581,7 @@ function buildAppMarkup(): string {
                       <span>内置预设</span>
                       <select id="commandPresetSelect" name="actionPreset">
                         <option value="" hidden></option>
+                        <option value="BootNotification">BootNotification</option>
                         <option value="Heartbeat" selected>Heartbeat</option>
                         <option value="StatusNotification">StatusNotification</option>
                         <option value="Authorize">Authorize</option>
@@ -633,52 +613,6 @@ function buildAppMarkup(): string {
               </header>
               <div class="card-body">
                 <p class="empty-note">发送 OCPP 命令后查看 CALLRESULT 或 CALLERROR。</p>
-              </div>
-            </section>
-
-            <section id="boot" class="card boot-card" data-route-section="boot">
-              <header class="card-head">
-                <div>
-                  <p class="eyebrow">编辑器</p>
-                  <h3>BootNotification</h3>
-                </div>
-              </header>
-              <div class="card-body">
-                <div class="field-grid">
-                  <label class="field">
-                    <span>厂商</span>
-                    <input id="vendorInput" name="chargePointVendor" type="text" value="Workbench EV" required />
-                  </label>
-                  <label class="field">
-                    <span>型号</span>
-                    <input id="modelInput" name="chargePointModel" type="text" value="Bench-16J" required />
-                  </label>
-                </div>
-
-                <details class="advanced-fields">
-                  <summary>可选 OCPP 字段</summary>
-                  <div class="field-grid">
-                    <label class="field"><span>充电点序列号</span><input id="chargePointSerialInput" type="text" /></label>
-                    <label class="field"><span>充电盒序列号</span><input id="chargeBoxSerialInput" type="text" /></label>
-                    <label class="field"><span>固件版本</span><input id="firmwareInput" type="text" /></label>
-                    <label class="field"><span>ICCID</span><input id="iccidInput" type="text" /></label>
-                    <label class="field"><span>IMSI</span><input id="imsiInput" type="text" /></label>
-                    <label class="field"><span>电表序列号</span><input id="meterSerialInput" type="text" /></label>
-                    <label class="field"><span>电表类型</span><input id="meterTypeInput" type="text" /></label>
-                  </div>
-                </details>
-              </div>
-            </section>
-
-            <section id="resultCard" class="card result-card empty" data-route-section="boot">
-              <header class="card-head">
-                <div>
-                  <p class="eyebrow">解析响应</p>
-                  <h3>BootNotification 结果</h3>
-                </div>
-              </header>
-              <div class="card-body">
-                <p class="empty-note">连接到中央系统并发送 BootNotification 后查看解析响应。</p>
               </div>
             </section>
 
@@ -947,7 +881,6 @@ function renderStatus(elements: DashboardElements, status: ConnectionState): voi
 
   elements.connectButton.disabled = isConnecting || isConnected || isDisconnecting;
   elements.disconnectButton.disabled = !isConnected || isDisconnecting;
-  elements.bootButton.disabled = !isConnected;
   elements.sendCommandButton.disabled = !isConnected || elements.sendCommandButton.dataset.pending === 'true';
 
   elements.statusBadge.className = `status-badge is-${status}`;
@@ -1081,6 +1014,47 @@ function commandPresetName(action: string): string {
   return Object.prototype.hasOwnProperty.call(OCPP_COMMAND_PRESETS, normalized) ? normalized : '';
 }
 
+function commandResponseToBootResult(response: OcppCommandResponse): BootResultEvent | undefined {
+  if (response.action.trim() !== 'BootNotification') {
+    return undefined;
+  }
+
+  if (response.type === 'callError') {
+    return {
+      type: 'boot-result',
+      at: new Date().toISOString(),
+      result: {
+        type: 'callError',
+        uniqueId: response.uniqueId,
+        errorCode: response.errorCode,
+        errorDescription: response.errorDescription,
+        errorDetails: response.errorDetails
+      }
+    };
+  }
+
+  const payload =
+    typeof response.rawPayload === 'object' && response.rawPayload !== null && !Array.isArray(response.rawPayload)
+      ? (response.rawPayload as Record<string, unknown>)
+      : {};
+
+  return {
+    type: 'boot-result',
+    at: new Date().toISOString(),
+    result: {
+      type: 'callResult',
+      uniqueId: response.uniqueId,
+      status: typeof payload.status === 'string' ? payload.status : undefined,
+      currentTime: typeof payload.currentTime === 'string' ? payload.currentTime : undefined,
+      interval:
+        typeof payload.interval === 'number' && Number.isInteger(payload.interval) && payload.interval >= 0
+          ? payload.interval
+          : undefined,
+      rawPayload: response.rawPayload
+    }
+  };
+}
+
 function parseCommandPayload(raw: string): Record<string, unknown> {
   let payload: unknown;
   try {
@@ -1154,71 +1128,6 @@ function renderCommandResult(container: HTMLElement, response?: OcppCommandRespo
   body.append(title, details);
   container.className = 'card result-card command-result-card status-' + (response.type === 'callResult' ? 'accepted' : 'rejected');
   container.replaceChildren(head, body);
-}
-
-function resetResult(container: HTMLElement, state: { bootResult?: BootResultEvent }): void {
-  state.bootResult = undefined;
-  container.className = 'card result-card empty';
-  container.innerHTML = `
-    <header class="card-head">
-      <div>
-        <p class="eyebrow">解析响应</p>
-        <h3>BootNotification 结果</h3>
-      </div>
-    </header>
-    <div class="card-body">
-      <p class="empty-note">连接到中央系统并发送 BootNotification 后查看解析响应。</p>
-    </div>
-  `;
-}
-
-function renderResult(container: HTMLElement, event: BootResultEvent): void {
-  container.replaceChildren();
-
-  const head = document.createElement('header');
-  head.className = 'card-head';
-  const headWrap = document.createElement('div');
-  const eyebrow = document.createElement('p');
-  eyebrow.className = 'eyebrow';
-  eyebrow.textContent = '解析响应';
-  const headTitle = document.createElement('h3');
-  headTitle.textContent = 'BootNotification 结果';
-  headWrap.append(eyebrow, headTitle);
-  head.append(headWrap);
-
-  const body = document.createElement('div');
-  body.className = 'card-body';
-
-  const title = document.createElement('p');
-  title.className = 'result-title';
-  const icon = document.createElement('span');
-  icon.className = 'result-icon';
-  title.append(icon);
-
-  const details = document.createElement('dl');
-  details.className = 'result-grid';
-
-  let statusClass = 'unknown';
-  if (event.result.type === 'callResult') {
-    const result = event.result as BootNotificationCallResult;
-    statusClass = (result.status ?? 'unknown').toLowerCase();
-    title.append(document.createTextNode(result.status ?? 'CALLRESULT received'));
-    appendDefinition(details, '当前时间', result.currentTime ? formatTimestamp(result.currentTime) : EMPTY_VALUE);
-    appendDefinition(details, '间隔', result.interval === undefined ? EMPTY_VALUE : formatInterval(result.interval));
-    appendDefinition(details, 'Request ID', result.uniqueId);
-    appendDefinition(details, '原始载荷', formatResultDetails(result.rawPayload));
-  } else {
-    const result = event.result as BootNotificationCallError;
-    statusClass = 'rejected';
-    title.append(document.createTextNode(result.errorCode));
-    appendDefinition(details, '描述', result.errorDescription || EMPTY_VALUE);
-    appendDefinition(details, '详情', formatResultDetails(result.errorDetails));
-    appendDefinition(details, 'Request ID', result.uniqueId);
-  }
-
-  body.append(title, details);
-  container.className = `card result-card status-${statusClass}`;
-  container.append(head, body);
 }
 
 function renderNotices(container: HTMLElement, events: SessionEvent[], bootResult?: BootResultEvent): void {
@@ -1561,20 +1470,6 @@ function formatResultDetails(value: unknown): string {
 
 function collectHeaders(headers: HeaderDraft[]): HeaderEntry[] {
   return headers.map((header) => ({ ...header }));
-}
-
-function collectBootPayload(root: HTMLElement): BootNotificationPayload {
-  return {
-    chargePointVendor: inputValue(root, '#vendorInput'),
-    chargePointModel: inputValue(root, '#modelInput'),
-    chargePointSerialNumber: inputValue(root, '#chargePointSerialInput'),
-    chargeBoxSerialNumber: inputValue(root, '#chargeBoxSerialInput'),
-    firmwareVersion: inputValue(root, '#firmwareInput'),
-    iccid: inputValue(root, '#iccidInput'),
-    imsi: inputValue(root, '#imsiInput'),
-    meterSerialNumber: inputValue(root, '#meterSerialInput'),
-    meterType: inputValue(root, '#meterTypeInput')
-  };
 }
 
 function isTlsEnabled(root: HTMLElement): boolean {
