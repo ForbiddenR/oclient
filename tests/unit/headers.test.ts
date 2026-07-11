@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeConnectionUrl, normalizeCustomHeaders, OcppClientError } from '../../src/main/ocpp/client';
+import {
+  describeWebSocketError,
+  normalizeConnectionUrl,
+  normalizeCustomHeaders,
+  OcppClientError
+} from '../../src/main/ocpp/client';
 
 describe('connection config normalization', () => {
   it('applies the selected protocol when the address omits a scheme', () => {
@@ -49,5 +54,24 @@ describe('custom header normalization', () => {
     expect(() => normalizeCustomHeaders([{ id: '1', enabled: true, name: 'Bad Header', value: 'x' }])).toThrow(
       OcppClientError
     );
+  });
+});
+
+describe('WebSocket error descriptions', () => {
+  it('classifies a refused connection', () => {
+    const error = Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+
+    expect(describeWebSocketError(error)).toMatchObject({
+      code: 'connection-refused',
+      title: 'Connection refused'
+    });
+  });
+
+  it('classifies DNS and TLS validation failures', () => {
+    const dnsError = Object.assign(new Error('getaddrinfo ENOTFOUND central.invalid'), { code: 'ENOTFOUND' });
+    const tlsError = Object.assign(new Error('self-signed certificate'), { code: 'DEPTH_ZERO_SELF_SIGNED_CERT' });
+
+    expect(describeWebSocketError(dnsError)).toMatchObject({ code: 'dns', title: 'DNS lookup failed' });
+    expect(describeWebSocketError(tlsError)).toMatchObject({ code: 'tls', title: 'TLS certificate validation failed' });
   });
 });

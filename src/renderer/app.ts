@@ -18,6 +18,7 @@ interface HeaderDraft {
 
 type BootResultEvent = Extract<SessionEvent, { type: 'boot-result' }>;
 type LogLevel = Extract<SessionEvent, { type: 'log' }>['level'];
+type ConnectionFailureEvent = Extract<SessionEvent, { type: 'connection-failure' }>;
 
 interface AppState {
   headers: HeaderDraft[];
@@ -27,6 +28,7 @@ interface AppState {
   events: SessionEvent[];
   bootResult?: BootResultEvent;
   connectResult?: ConnectResult;
+  connectionFailure?: ConnectionFailureEvent;
   connectedAt?: string;
   disconnectedAt?: string;
 }
@@ -48,6 +50,7 @@ interface DashboardElements {
   railStatus: HTMLElement;
   railDuration: HTMLElement;
   railVersion: HTMLElement;
+  failureNotification: HTMLElement;
   overviewGrid: HTMLElement;
   metricGrid: HTMLElement;
   eventLog: HTMLElement;
@@ -67,6 +70,7 @@ export function createApp(root: HTMLElement): void {
     events: [],
     bootResult: undefined,
     connectResult: undefined,
+    connectionFailure: undefined,
     connectedAt: undefined,
     disconnectedAt: undefined
   };
@@ -91,6 +95,7 @@ export function createApp(root: HTMLElement): void {
     railStatus: mustQuery<HTMLElement>(root, '#railStatus'),
     railDuration: mustQuery<HTMLElement>(root, '#railDuration'),
     railVersion: mustQuery<HTMLElement>(root, '#railVersion'),
+    failureNotification: mustQuery<HTMLElement>(root, '#connectionFailureNotification'),
     overviewGrid: mustQuery<HTMLElement>(root, '#overviewGrid'),
     metricGrid: mustQuery<HTMLElement>(root, '#metricGrid'),
     eventLog: mustQuery<HTMLElement>(root, '#eventLog'),
@@ -101,6 +106,7 @@ export function createApp(root: HTMLElement): void {
   const renderDashboard = () => {
     renderTransport(root, elements.caSection, elements.caPath, state.caCertificatePath, state.allowInsecureTls);
     renderStatus(elements, state.connectionState);
+    renderConnectionFailure(elements.failureNotification, state.connectionFailure);
     renderConnectionOverview(elements.overviewGrid, root, state);
     renderSessionMetrics(elements.metricGrid, state);
     renderLog(elements.eventLog, state.events);
@@ -206,10 +212,18 @@ export function createApp(root: HTMLElement): void {
     renderDashboard();
   });
 
+  elements.failureNotification.addEventListener('click', (event) => {
+    if ((event.target as HTMLElement).closest('[data-dismiss-connection-failure]')) {
+      state.connectionFailure = undefined;
+      renderDashboard();
+    }
+  });
+
   elements.form.addEventListener('submit', async (event) => {
     event.preventDefault();
     elements.connectButton.disabled = true;
     state.connectResult = undefined;
+    state.connectionFailure = undefined;
     state.connectedAt = undefined;
     state.disconnectedAt = undefined;
     resetResult(elements.resultCard, state);
@@ -228,10 +242,25 @@ export function createApp(root: HTMLElement): void {
       if (result.ok) {
         state.connectResult = result;
       } else {
+        state.connectionFailure = {
+          type: 'connection-failure',
+          at: new Date().toISOString(),
+          failure: result.failure ?? {
+            code: 'unknown',
+            title: 'WebSocket connection failed',
+            reason: result.error ?? 'An unknown WebSocket error occurred.'
+          }
+        };
         pushLocalLog(state, `连接失败： ${result.error ?? '未知错误。'}`, 'error');
       }
     } catch (error) {
-      pushLocalLog(state, getErrorMessage(error), 'error');
+      const reason = getErrorMessage(error);
+      state.connectionFailure = {
+        type: 'connection-failure',
+        at: new Date().toISOString(),
+        failure: { code: 'unknown', title: 'WebSocket connection failed', reason }
+      };
+      pushLocalLog(state, reason, 'error');
     } finally {
       renderDashboard();
     }
@@ -275,6 +304,7 @@ export function createApp(root: HTMLElement): void {
       state.connectionState = event.status;
 
       if (event.status === 'connected') {
+        state.connectionFailure = undefined;
         state.connectedAt = state.connectedAt ?? event.at;
         state.disconnectedAt = undefined;
         startDurationTimer();
@@ -288,6 +318,10 @@ export function createApp(root: HTMLElement): void {
 
     if (event.type === 'boot-result') {
       state.bootResult = event;
+    }
+
+    if (event.type === 'connection-failure') {
+      state.connectionFailure = event;
     }
 
     renderDashboard();
@@ -336,6 +370,8 @@ function buildAppMarkup(): string {
             <button id="bootButton" class="accent" type="button" disabled>发送 BootNotification</button>
           </div>
         </header>
+
+        <section id="connectionFailureNotification" class="connection-alert" role="alert" aria-live="assertive" hidden></section>
 
         <section id="dashboard" class="card connection-card" aria-label="连接状态">
           <header class="card-head">
@@ -604,6 +640,56 @@ function renderTransport(
   }
 }
 
+function renderConnectionFailure(container: HTMLElement, event?: ConnectionFailureEvent): void {
+  container.hidden = !event;
+  if (!event) {
+    container.replaceChildren();
+    return;
+  }
+
+  const icon = document.createElement('span');
+  icon.className = 'connection-alert-icon';
+  icon.textContent = '!';
+  icon.setAttribute('aria-hidden', 'true');
+
+  const content = document.createElement('div');
+  content.className = 'connection-alert-content';
+  const title = document.createElement('strong');
+  title.textContent = event.failure.title;
+  const reason = document.createElement('p');
+  reason.textContent = event.failure.reason;
+  content.append(title, reason);
+
+  const metadata = [
+    `错误类型: ${event.failure.code}`,
+    event.failure.statusCode === undefined ? undefined : `HTTP 状态: ${event.failure.statusCode}`
+  ].filter((value): value is string => Boolean(value));
+
+  if (event.failure.technicalDetails || metadata.length > 0) {
+    const details = document.createElement('details');
+    details.className = 'connection-alert-details';
+    const summary = document.createElement('summary');
+    summary.textContent = '查看技术详情';
+    const pre = document.createElement('pre');
+    pre.textContent = [...metadata, event.failure.technicalDetails].filter(Boolean).join('\n');
+    details.append(summary, pre);
+    content.append(details);
+  }
+
+  const dismiss = document.createElement('button');
+  dismiss.type = 'button';
+  dismiss.className = 'connection-alert-dismiss';
+  dismiss.dataset.dismissConnectionFailure = 'true';
+  dismiss.textContent = '关闭';
+  dismiss.setAttribute('aria-label', '关闭 WebSocket 失败通知');
+
+  const time = document.createElement('time');
+  time.dateTime = event.at;
+  time.textContent = formatTime(event.at);
+
+  container.replaceChildren(icon, content, time, dismiss);
+}
+
 function renderStatus(elements: DashboardElements, status: ConnectionState): void {
   const isConnecting = status === 'connecting';
   const isConnected = status === 'connected';
@@ -623,8 +709,16 @@ function renderConnectionOverview(container: HTMLElement, root: HTMLElement, sta
   const summary = deriveConnectionSummary(root, state);
   container.replaceChildren(
     createDefinitionTile('WebSocket URL', summary.url),
+    createDefinitionTile('传输方式', summary.transport),
     createDefinitionTile('充电点 ID', summary.chargePointId),
-    createDefinitionTile('OCPP 版本', summary.ocppVersion),
+    createDefinitionTile('子协议', summary.subprotocol),
+    createDefinitionTile('握手状态', summary.handshakeStatus),
+    createDefinitionTile('远程端点', summary.remoteEndpoint),
+    createDefinitionTile('本地端点', summary.localEndpoint),
+    createDefinitionTile('TLS', summary.tls),
+    createDefinitionTile('扩展', summary.extensions),
+    createDefinitionTile('自定义请求头', summary.customHeaders),
+    createDefinitionTile('响应头', summary.responseHeaders),
     createDefinitionTile('连接时间', summary.connectedAt),
     createDefinitionTile('连接时长', summary.duration),
     createDefinitionTile('心跳间隔', summary.interval)
@@ -635,10 +729,15 @@ function createDefinitionTile(label: string, value: string): HTMLDivElement {
   const tile = document.createElement('div');
   tile.className = 'overview-tile';
 
+  if (label === '响应头') {
+    tile.classList.add('overview-tile-detail');
+  }
+
   const dt = document.createElement('dt');
   dt.textContent = label;
   const dd = document.createElement('dd');
   dd.textContent = value;
+  dd.title = value;
 
   tile.append(dt, dd);
   return tile;
@@ -826,7 +925,15 @@ function appendDefinition(list: HTMLDListElement, term: string, value: string): 
 function deriveConnectionSummary(root: HTMLElement, state: AppState): {
   url: string;
   chargePointId: string;
-  ocppVersion: string;
+  transport: string;
+  subprotocol: string;
+  handshakeStatus: string;
+  remoteEndpoint: string;
+  localEndpoint: string;
+  tls: string;
+  extensions: string;
+  customHeaders: string;
+  responseHeaders: string;
   connectedAt: string;
   duration: string;
   interval: string;
@@ -835,13 +942,29 @@ function deriveConnectionSummary(root: HTMLElement, state: AppState): {
   const configuredProtocol = getSelectedProtocol(root);
   const configuredUrl = configuredAddress ? previewConnectionUrl(configuredProtocol, configuredAddress) : EMPTY_VALUE;
   const url = state.connectResult?.url ?? configuredUrl;
-  const subprotocol = state.connectResult?.subprotocol ?? inputValue(root, '#subprotocolInput');
+  const configuredSubprotocol = inputValue(root, '#subprotocolInput') || 'ocpp1.6';
+  const details = state.connectResult?.details;
+  const responseHeaders = details
+    ? Object.entries(details.responseHeaders)
+        .map(([name, value]) => `${name}: ${value}`)
+        .join('\n')
+    : '';
   const interval = state.bootResult?.result.type === 'callResult' ? state.bootResult.result.interval : undefined;
 
   return {
     url,
     chargePointId: extractChargePointId(url),
-    ocppVersion: formatOcppVersion(subprotocol),
+    transport: details ? `${details.transport.toUpperCase()}${details.transport === 'wss' ? ' (TLS)' : ''}` : configuredProtocol.toUpperCase(),
+    subprotocol: details
+      ? `${details.requestedSubprotocol} → ${details.negotiatedSubprotocol}`
+      : configuredSubprotocol,
+    handshakeStatus: details ? `HTTP ${details.handshakeStatus} Switching Protocols` : EMPTY_VALUE,
+    remoteEndpoint: details?.remoteEndpoint ?? EMPTY_VALUE,
+    localEndpoint: details?.localEndpoint ?? EMPTY_VALUE,
+    tls: details ? formatTlsDetails(details.tlsMode, details.tlsProtocol, details.cipher) : previewTlsMode(configuredProtocol, state),
+    extensions: details?.extensions ?? '无',
+    customHeaders: details?.customHeaderNames.length ? details.customHeaderNames.join(', ') : '无',
+    responseHeaders: responseHeaders || EMPTY_VALUE,
     connectedAt: state.connectedAt ? formatTimestamp(state.connectedAt) : EMPTY_VALUE,
     duration: state.connectedAt && state.connectionState === 'connected' ? formatDuration(state.connectedAt) : EMPTY_VALUE,
     interval: interval === undefined ? EMPTY_VALUE : formatInterval(interval)
@@ -862,10 +985,14 @@ function deriveSessionMetrics(state: AppState): {
   const outboundFrames = frameEvents.filter((event) => event.direction === 'out').length;
   const inboundFrames = frameEvents.filter((event) => event.direction === 'in').length;
   const totalFrames = frameEvents.length;
+  const connectionFailureTimes = new Set(
+    state.events.filter((event) => event.type === 'connection-failure').map((event) => event.at)
+  );
   const errors = state.events.filter(
     (event) =>
-      (event.type === 'log' && event.level === 'error') ||
-      (event.type === 'status' && event.status === 'error') ||
+      event.type === 'connection-failure' ||
+      (event.type === 'log' && event.level === 'error' && !connectionFailureTimes.has(event.at)) ||
+      (event.type === 'status' && event.status === 'error' && !connectionFailureTimes.has(event.at)) ||
       (event.type === 'boot-result' && event.result.type === 'callError')
   ).length;
 
@@ -937,6 +1064,20 @@ function deriveEventRows(events: SessionEvent[]): Array<{
         };
       }
 
+      if (event.type === 'connection-failure') {
+        const full = [event.failure.reason, event.failure.technicalDetails].filter(Boolean).join('\n');
+        return {
+          time: formatTime(event.at),
+          direction: '失败',
+          directionTone: 'error',
+          type: event.failure.title,
+          requestId: EMPTY_VALUE,
+          summary: event.failure.reason,
+          full,
+          kind: 'connection-failure'
+        };
+      }
+
       return {
         time: formatTime(event.at),
         direction: event.level,
@@ -951,7 +1092,18 @@ function deriveEventRows(events: SessionEvent[]): Array<{
 }
 
 function deriveRecentNotices(events: SessionEvent[], bootResult?: BootResultEvent): Array<{ at: string; tone: string; message: string }> {
+  const connectionFailureTimes = new Set(
+    events.filter((event) => event.type === 'connection-failure').map((event) => event.at)
+  );
   const notices = events.flatMap((event) => {
+    if (event.type === 'connection-failure') {
+      return [{ at: event.at, tone: 'error', message: `${event.failure.title}: ${event.failure.reason}` }];
+    }
+
+    if (connectionFailureTimes.has(event.at) && ((event.type === 'status' && event.status === 'error') || (event.type === 'log' && event.level === 'error'))) {
+      return [];
+    }
+
     if (event.type === 'status' && (event.status === 'connected' || event.status === 'disconnected' || event.status === 'error')) {
       return [{ at: event.at, tone: event.status === 'error' ? 'error' : 'success', message: event.message }];
     }
@@ -1088,6 +1240,36 @@ function formatOcppVersion(subprotocol?: string): string {
   }
 
   return subprotocol?.trim() ?? '1.6J';
+}
+
+function previewTlsMode(protocol: TransportProtocol, state: Pick<AppState, 'allowInsecureTls' | 'caCertificatePath'>): string {
+  if (protocol === 'ws') {
+    return '不适用';
+  }
+
+  if (state.allowInsecureTls) {
+    return '证书验证已禁用';
+  }
+
+  return state.caCertificatePath ? '自定义 CA 验证' : '系统 CA 验证';
+}
+
+function formatTlsDetails(
+  mode: 'not-applicable' | 'verified' | 'custom-ca' | 'insecure',
+  protocol?: string,
+  cipher?: string
+): string {
+  if (mode === 'not-applicable') {
+    return '不适用';
+  }
+
+  const labels = {
+    verified: '已验证（系统 CA）',
+    'custom-ca': '已验证（自定义 CA）',
+    insecure: '未验证（不安全）'
+  } as const;
+  const details = [labels[mode], protocol, cipher].filter(Boolean);
+  return details.join(' · ');
 }
 
 function formatDuration(from: string, to = new Date().toISOString()): string {

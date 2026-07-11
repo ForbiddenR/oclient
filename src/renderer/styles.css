@@ -265,6 +265,88 @@ p {
   justify-content: flex-end;
 }
 
+.connection-alert {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: start;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(240, 68, 56, 0.32);
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, rgba(240, 68, 56, 0.12), rgba(255, 255, 255, 0.96));
+  box-shadow: 0 12px 30px rgba(240, 68, 56, 0.08);
+}
+
+.connection-alert-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--red);
+  color: #fff;
+  font-weight: 900;
+}
+
+.connection-alert-content {
+  min-width: 0;
+}
+
+.connection-alert-content strong {
+  display: block;
+  color: #b42318;
+  font-size: 0.92rem;
+}
+
+.connection-alert-content p {
+  margin: 3px 0 0;
+  line-height: 1.45;
+}
+
+.connection-alert time {
+  padding-top: 6px;
+  color: var(--muted);
+  font-family: "SF Mono", "Cascadia Code", ui-monospace, monospace;
+  font-size: 0.72rem;
+}
+
+.connection-alert-dismiss {
+  min-height: 32px;
+  padding: 0 10px;
+  cursor: pointer;
+  border: 1px solid rgba(240, 68, 56, 0.3);
+  border-radius: 8px;
+  color: #b42318;
+  font-weight: 800;
+}
+
+.connection-alert-details {
+  margin-top: 8px;
+}
+
+.connection-alert-details summary {
+  width: max-content;
+  cursor: pointer;
+  color: #b42318;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.connection-alert-details pre {
+  max-height: 180px;
+  overflow: auto;
+  padding: 10px;
+  margin: 8px 0 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  font-family: "SF Mono", "Cascadia Code", ui-monospace, monospace;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* Cards */
 .card {
   border: 1px solid var(--line);
@@ -357,6 +439,18 @@ p {
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.overview-tile-detail {
+  grid-column: span 2;
+}
+
+.overview-tile-detail dd {
+  max-height: 96px;
+  overflow: auto;
+  text-overflow: initial;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .overview-tile:nth-child(1) dd,
@@ -1068,6 +1162,18 @@ p {
   .field-grid,
   .rail-nav {
     grid-template-columns: 1fr;
+  }
+
+  .overview-tile-detail {
+    grid-column: auto;
+  }
+
+  .connection-alert {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .connection-alert time {
+    display: none;
   }
 
   .log-row {

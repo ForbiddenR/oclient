@@ -30,7 +30,45 @@ export interface ConnectResult {
   url?: string;
   protocol?: TransportProtocol;
   subprotocol?: string;
+  details?: WebSocketConnectionDetails;
+  failure?: WebSocketFailure;
   error?: string;
+}
+
+export type WebSocketFailureCode =
+  | 'configuration'
+  | 'timeout'
+  | 'http-rejected'
+  | 'tls'
+  | 'dns'
+  | 'connection-refused'
+  | 'network'
+  | 'subprotocol'
+  | 'closed'
+  | 'unknown';
+
+export interface WebSocketFailure {
+  code: WebSocketFailureCode;
+  title: string;
+  reason: string;
+  technicalDetails?: string;
+  statusCode?: number;
+}
+
+export interface WebSocketConnectionDetails {
+  url: string;
+  transport: TransportProtocol;
+  requestedSubprotocol: string;
+  negotiatedSubprotocol: string;
+  handshakeStatus: number;
+  remoteEndpoint?: string;
+  localEndpoint?: string;
+  extensions?: string;
+  tlsMode: 'not-applicable' | 'verified' | 'custom-ca' | 'insecure';
+  tlsProtocol?: string;
+  cipher?: string;
+  customHeaderNames: string[];
+  responseHeaders: Record<string, string>;
 }
 
 export interface PickCertificateResult {
@@ -102,6 +140,11 @@ export type SessionEvent =
       type: 'boot-result';
       at: string;
       result: BootNotificationResponse;
+    }
+  | {
+      type: 'connection-failure';
+      at: string;
+      failure: WebSocketFailure;
     };
 
 export interface OclientApi {

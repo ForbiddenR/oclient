@@ -53,6 +53,16 @@ describe('OcppClient integration', () => {
     });
 
     expect(result.ok).toBe(true);
+    expect(result.details).toMatchObject({
+      transport: 'ws',
+      requestedSubprotocol: 'ocpp1.6',
+      negotiatedSubprotocol: 'ocpp1.6',
+      handshakeStatus: 101,
+      tlsMode: 'not-applicable',
+      customHeaderNames: ['X-Station-Token']
+    });
+    expect(result.details?.remoteEndpoint).toContain(`:${address.port}`);
+    expect(result.details?.responseHeaders.upgrade).toBe('websocket');
 
     const response = await client.sendBootNotification({
       chargePointVendor: 'Acme',
@@ -92,9 +102,13 @@ describe('OcppClient integration', () => {
     await once(server, 'listening');
     const address = server.address() as AddressInfo;
     const events: string[] = [];
+    const failureDetails: string[] = [];
     const client = new OcppClient((event) => {
       if (event.type === 'log') {
         events.push(event.message);
+      }
+      if (event.type === 'connection-failure' && event.failure.technicalDetails) {
+        failureDetails.push(event.failure.technicalDetails);
       }
     });
 
@@ -106,8 +120,10 @@ describe('OcppClient integration', () => {
 
     expect(result.ok).toBe(false);
     expect(result.error).toContain('HTTP 401 Unauthorized');
-    expect(result.error).toContain(responseBody);
-    expect(events.some((message) => message.includes('HTTP 401 Unauthorized') && message.includes(responseBody))).toBe(true);
+    expect(result.failure).toMatchObject({ code: 'http-rejected', statusCode: 401 });
+    expect(result.failure?.technicalDetails).toContain(responseBody);
+    expect(events.some((message) => message.includes('WebSocket upgrade rejected'))).toBe(true);
+    expect(failureDetails.some((message) => message.includes(responseBody))).toBe(true);
 
     await client.disconnect();
   });
@@ -147,6 +163,13 @@ describe('OcppClient integration', () => {
       caCertificatePath: resolve(certDir, 'ca.crt'),
       headers: []
     });
+    expect(trustedResult.details).toMatchObject({
+      transport: 'wss',
+      tlsMode: 'custom-ca',
+      handshakeStatus: 101
+    });
+    expect(trustedResult.details?.tlsProtocol).toMatch(/^TLS/);
+    expect(trustedResult.details?.cipher).toBeTruthy();
 
     expect(trustedResult.ok).toBe(true);
 
@@ -189,6 +212,11 @@ describe('OcppClient integration', () => {
       address: `127.0.0.1:${address.port}/CP001`,
       headers: [],
       allowInsecureTls: true
+    });
+    expect(result.details).toMatchObject({
+      transport: 'wss',
+      tlsMode: 'insecure',
+      handshakeStatus: 101
     });
 
     expect(result.ok).toBe(true);
