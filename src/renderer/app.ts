@@ -159,6 +159,8 @@ export function createApp(root: HTMLElement): void {
     });
 
     elements.form.hidden = route === 'messages';
+    elements.connectButton.hidden = route !== 'dashboard';
+    elements.disconnectButton.hidden = route !== 'dashboard';
     elements.bootButton.hidden = route !== 'boot';
 
     root.querySelectorAll<HTMLAnchorElement>('[data-route-link]').forEach((link) => {
