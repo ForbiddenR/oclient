@@ -20,6 +20,15 @@ type BootResultEvent = Extract<SessionEvent, { type: 'boot-result' }>;
 type LogLevel = Extract<SessionEvent, { type: 'log' }>['level'];
 type ConnectionFailureEvent = Extract<SessionEvent, { type: 'connection-failure' }>;
 
+type AppRoute = 'dashboard' | 'messages' | 'boot' | 'settings';
+
+const ROUTE_METADATA: Record<AppRoute, { title: string; eyebrow: string }> = {
+  dashboard: { title: '仪表盘', eyebrow: '实时连接概览' },
+  messages: { title: '消息日志', eyebrow: '会话帧与事件' },
+  boot: { title: 'BootNotification', eyebrow: 'OCPP 操作' },
+  settings: { title: '连接设置', eyebrow: 'WebSocket 配置' }
+};
+
 interface AppState {
   headers: HeaderDraft[];
   caCertificatePath: string;
@@ -34,6 +43,8 @@ interface AppState {
 }
 
 interface DashboardElements {
+  routeTitle: HTMLElement;
+  routeEyebrow: HTMLElement;
   form: HTMLFormElement;
   caSection: HTMLElement;
   caPath: HTMLElement;
@@ -79,6 +90,8 @@ export function createApp(root: HTMLElement): void {
   root.innerHTML = buildAppMarkup();
 
   const elements: DashboardElements = {
+    routeTitle: mustQuery<HTMLElement>(root, '#routeTitle'),
+    routeEyebrow: mustQuery<HTMLElement>(root, '#routeEyebrow'),
     form: mustQuery<HTMLFormElement>(root, '#controlForm'),
     caSection: mustQuery<HTMLElement>(root, '#caSection'),
     caPath: mustQuery<HTMLElement>(root, '#caPath'),
@@ -101,6 +114,33 @@ export function createApp(root: HTMLElement): void {
     eventLog: mustQuery<HTMLElement>(root, '#eventLog'),
     noticesList: mustQuery<HTMLElement>(root, '#noticesList'),
     resultCard: mustQuery<HTMLElement>(root, '#resultCard')
+  };
+
+  const renderRoute = () => {
+    const route = routeFromHash(window.location.hash);
+    const metadata = ROUTE_METADATA[route];
+
+    elements.routeTitle.textContent = metadata.title;
+    elements.routeEyebrow.textContent = metadata.eyebrow;
+    document.title = metadata.title + ' · OCPP 客户端';
+    mustQuery<HTMLElement>(root, '.dashboard').dataset.currentRoute = route;
+
+    root.querySelectorAll<HTMLElement>('[data-route-section]').forEach((section) => {
+      section.hidden = section.dataset.routeSection !== route;
+    });
+
+    elements.form.hidden = route === 'messages';
+    elements.bootButton.hidden = route !== 'boot';
+
+    root.querySelectorAll<HTMLAnchorElement>('[data-route-link]').forEach((link) => {
+      const isActive = link.dataset.routeLink === route;
+      link.classList.toggle('active', isActive);
+      if (isActive) {
+        link.setAttribute('aria-current', 'page');
+      } else {
+        link.removeAttribute('aria-current');
+      }
+    });
   };
 
   const renderDashboard = () => {
@@ -140,7 +180,13 @@ export function createApp(root: HTMLElement): void {
   };
 
   renderHeaders(elements.headerRows, state.headers);
+  renderRoute();
   renderDashboard();
+
+  window.addEventListener('hashchange', () => {
+    renderRoute();
+    window.scrollTo(0, 0);
+  });
 
   root.addEventListener('change', (event) => {
     const target = event.target;
@@ -343,10 +389,10 @@ function buildAppMarkup(): string {
         </div>
 
         <nav class="rail-nav" aria-label="仪表盘分区">
-          <a class="active" href="#dashboard" title="仪表盘" aria-label="仪表盘"><span class="rail-icon" aria-hidden="true">⌂</span><span>仪表盘</span></a>
-          <a href="#messages" title="消息日志" aria-label="消息日志"><span class="rail-icon" aria-hidden="true">⇄</span><span>消息日志</span></a>
-          <a href="#boot" title="BootNotification" aria-label="BootNotification"><span class="rail-icon" aria-hidden="true">↯</span><span>BootNotification</span></a>
-          <a href="#settings" title="连接设置" aria-label="连接设置"><span class="rail-icon" aria-hidden="true">⚙</span><span>连接设置</span></a>
+          <a class="active" href="#/dashboard" data-route-link="dashboard" title="仪表盘" aria-label="仪表盘"><span class="rail-icon" aria-hidden="true">⌂</span><span>仪表盘</span></a>
+          <a href="#/messages" data-route-link="messages" title="消息日志" aria-label="消息日志"><span class="rail-icon" aria-hidden="true">⇄</span><span>消息日志</span></a>
+          <a href="#/boot" data-route-link="boot" title="BootNotification" aria-label="BootNotification"><span class="rail-icon" aria-hidden="true">↯</span><span>BootNotification</span></a>
+          <a href="#/settings" data-route-link="settings" title="连接设置" aria-label="连接设置"><span class="rail-icon" aria-hidden="true">⚙</span><span>连接设置</span></a>
         </nav>
 
         <div class="rail-summary" aria-label="当前会话摘要">
@@ -361,11 +407,11 @@ function buildAppMarkup(): string {
       <main class="dashboard">
         <header class="dashboard-topbar">
           <div>
-            <p class="eyebrow">基于 WebSocket 的 OCPP 1.6J</p>
-            <h2>仪表盘</h2>
+            <p id="routeEyebrow" class="eyebrow">实时连接概览</p>
+            <h2 id="routeTitle">仪表盘</h2>
           </div>
           <div class="session-actions" aria-label="会话操作">
-            <button id="connectButton" class="primary" type="submit" form="controlForm">连接</button>
+            <button id="connectButton" class="primary" type="submit" form="controlForm" formnovalidate>连接</button>
             <button id="disconnectButton" class="secondary" type="button" disabled>断开连接</button>
             <button id="bootButton" class="accent" type="button" disabled>发送 BootNotification</button>
           </div>
@@ -373,7 +419,7 @@ function buildAppMarkup(): string {
 
         <section id="connectionFailureNotification" class="connection-alert" role="alert" aria-live="assertive" hidden></section>
 
-        <section id="dashboard" class="card connection-card" aria-label="连接状态">
+        <section id="dashboard" class="card connection-card" data-route-section="dashboard" aria-label="连接状态">
           <header class="card-head">
             <div>
               <p class="eyebrow">连接状态</p>
@@ -384,10 +430,10 @@ function buildAppMarkup(): string {
           <div id="overviewGrid" class="overview-grid"></div>
         </section>
 
-        <section id="metricGrid" class="metrics-grid" aria-label="会话指标"></section>
+        <section id="metricGrid" class="metrics-grid" data-route-section="dashboard" aria-label="会话指标"></section>
 
         <div class="content-grid">
-          <section id="messages" class="card log-card">
+          <section id="messages" class="card log-card" data-route-section="messages">
             <header class="card-head">
               <div>
                 <p class="eyebrow">消息</p>
@@ -408,7 +454,7 @@ function buildAppMarkup(): string {
           </section>
 
           <form id="controlForm" class="side-stack">
-            <section id="boot" class="card boot-card">
+            <section id="boot" class="card boot-card" data-route-section="boot">
               <header class="card-head">
                 <div>
                   <p class="eyebrow">编辑器</p>
@@ -442,7 +488,7 @@ function buildAppMarkup(): string {
               </div>
             </section>
 
-            <section id="resultCard" class="card result-card empty">
+            <section id="resultCard" class="card result-card empty" data-route-section="boot">
               <header class="card-head">
                 <div>
                   <p class="eyebrow">解析响应</p>
@@ -454,7 +500,7 @@ function buildAppMarkup(): string {
               </div>
             </section>
 
-            <section class="card notices-card">
+            <section class="card notices-card" data-route-section="dashboard">
               <header class="card-head">
                 <div>
                   <p class="eyebrow">活动</p>
@@ -464,7 +510,7 @@ function buildAppMarkup(): string {
               <div id="noticesList" class="notice-list"></div>
             </section>
 
-            <section id="settings" class="card settings-card">
+            <section id="settings" class="card settings-card" data-route-section="settings">
               <header class="card-head">
                 <div>
                   <p class="eyebrow">设置</p>
@@ -512,7 +558,7 @@ function buildAppMarkup(): string {
               </div>
             </section>
 
-            <section class="card headers-card">
+            <section class="card headers-card" data-route-section="settings">
               <header class="card-head">
                 <div>
                   <p class="eyebrow">握手</p>
@@ -537,6 +583,11 @@ function buildAppMarkup(): string {
       </main>
     </section>
   `;
+}
+
+function routeFromHash(hash: string): AppRoute {
+  const route = hash.replace(/^#\/?/, '');
+  return route in ROUTE_METADATA ? (route as AppRoute) : 'dashboard';
 }
 
 function createHeaderDraft(): HeaderDraft {

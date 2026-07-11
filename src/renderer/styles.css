@@ -567,16 +567,22 @@ p {
 /* Main content */
 .content-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
 
 .side-stack {
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 16px;
   min-width: 0;
+}
+
+.dashboard[data-current-route="boot"] .side-stack,
+.dashboard[data-current-route="settings"] .side-stack {
+  max-width: 960px;
 }
 
 /* Buttons */
